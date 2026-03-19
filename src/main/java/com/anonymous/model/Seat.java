@@ -1,24 +1,44 @@
 package com.anonymous.model;
 
-import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableName;
-import com.baomidou.mybatisplus.annotation.Version;
+import com.anonymous.model.enums.SeatStatus;
 
-@TableName("t_seats")
+import java.time.LocalDateTime;
+
 public class Seat {
-    @TableId
+
     private Long id;
 
-    private Integer rowIndex;
+    private Long roomId;
 
-    private Integer colIndex;
+    private String seatCode;
 
-    private Integer status;
+    private Integer type;
 
-    @Version
-    private Integer version;
+    private SeatStatus status;
+
+    private String maintenanceNote = "";
+
+    private Integer xAxis;
+
+    private Integer yAxis;
+
+    private LocalDateTime createTime;
+
+    private LocalDateTime updateTime;
 
     public Seat() {
+    }
+
+    public Seat(Long id, Long roomId, String seatCode, Integer type, SeatStatus status, Integer xAxis, Integer yAxis, LocalDateTime createTime, LocalDateTime updateTime) {
+        this.id = id;
+        this.roomId = roomId;
+        this.seatCode = seatCode;
+        this.type = type;
+        this.status = status;
+        this.xAxis = xAxis;
+        this.yAxis = yAxis;
+        this.createTime = createTime;
+        this.updateTime = updateTime;
     }
 
     public Long getId() {
@@ -29,19 +49,81 @@ public class Seat {
         this.id = id;
     }
 
-    public Integer getRowIndex() {
-        return rowIndex;
+    public Long getRoomId() {
+        return roomId;
     }
 
-    public Integer getColIndex() {
-        return colIndex;
+    public void setRoomId(Long roomId) {
+        this.roomId = roomId;
     }
 
-    public Integer getStatus() {
+    public String getSeatCode() {
+        return seatCode;
+    }
+
+    public void setSeatCode(String seatCode) {
+        this.seatCode = seatCode;
+    }
+
+    public Integer getType() {
+        return type;
+    }
+
+    public void setType(Integer type) {
+        this.type = type;
+    }
+
+    public SeatStatus getStatus() {
         return status;
     }
 
-    public Integer getVersion() {
-        return version;
+    public void setStatus(SeatStatus status) {
+        this.status = status;
     }
+
+    public String getMaintenanceNote() {
+        return maintenanceNote;
+    }
+
+    public void setMaintenanceNote(String maintenanceNote) {
+        this.maintenanceNote = maintenanceNote;
+    }
+
+    public Integer getXAxis() {
+        return xAxis;
+    }
+
+    public void setXAxis(Integer xAxis) {
+        this.xAxis = xAxis;
+    }
+
+    public Integer getYAxis() {
+        return yAxis;
+    }
+
+    public void setYAxis(Integer yAxis) {
+        this.yAxis = yAxis;
+    }
+
+    public LocalDateTime getCreateTime() {
+        return createTime;
+    }
+
+    public void setCreateTime(LocalDateTime createTime) {
+        this.createTime = createTime;
+    }
+
+    public LocalDateTime getUpdateTime() {
+        return updateTime;
+    }
+
+    public void setUpdateTime(LocalDateTime updateTime) {
+        this.updateTime = updateTime;
+    }
+
+    @Override
+    public String toString() {
+        return "Seat{" + "id=" + id + ", roomId=" + roomId + ", code=" + seatCode + ", status=" + status + "}";
+    }
+
 }
