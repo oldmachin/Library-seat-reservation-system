@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.anonymous.mapper.ReservationMapper">
+
+    <sql id="reservationQueryCondition">
+        <where>
+            <if test="query.status != null">
+                AND r.status = #{query.status}
+            </if>
+
+            <if test="query.userId != null">
+                AND r.user_id = #{query.userId}
+            </if>
+
+            <if test="query.seatId != null">
+                AND r.seat_id = #{query.seatId}
+            </if>
+
+            <if test="query.roomId != null">
+                AND rm.id = #{query.roomId}
+            </if>
+
+            <if test="query.username != null and query.username != ''">
+                AND u.username LIKE CONCAT('%', #{query.username}, '%')
+            </if>
+
+            <if test="query.seatCode != null and query.seatCode != ''">
+                AND s.seat_code LIKE CONCAT('%', #{query.seatCode}, '%')
+            </if>
+
+            <if test="query.startDate != null">
+                AND r.start_time <![CDATA[>=]]> #{query.startDate}
+            </if>
+
+            <if test="query.endDate != null">
+                AND r.end_time <![CDATA[<=]]> #{query.endDate}
+            </if>
+        </where>
+    </sql>
+
+    <select id="findReservationsByCondition"
+        resultType="com.anonymous.vo.admin.ReservationAdminVO">
+
+    SELECT
+        r.id AS id,
+        r.user_id AS userId,
+        u.name AS userName,
+        u.username AS username,
+        rm.id AS roomId,
+        rm.name AS roomName,
+        r.seat_id AS seatId,
+        s.seat_code AS seatCode,
+        r.status AS status,
+        CASE r.status
+            WHEN 0 THEN '已预约'
+            WHEN 1 THEN '使用中'
+            WHEN 2 THEN '已完成'
+            WHEN 3 THEN '用户取消'
+            WHEN 4 THEN '已过期'
+            WHEN 5 THEN '管理员取消'
+            WHEN 6 THEN '违约'
+            ELSE '未知'
+        END AS statusText,
+        r.start_time AS startTime,
+        r.end_time AS endTime,
+        r.actual_start_time AS actualStartTime,
+        r.actual_end_time AS actualEndTime
+    FROM reservation r
+    LEFT JOIN `user` u ON r.user_id = u.id
+    LEFT JOIN seat s ON r.seat_id = s.id
+    LEFT JOIN room rm ON s.room_id = rm.id
+
+    <include refid="reservationQueryCondition"/>
+
+    ORDER BY r.id DESC
+    LIMIT #{offset}, #{size}
+</select>
+
+    <select id="countReservationsByCondition"
+            resultType="java.lang.Long">
+
+        SELECT COUNT(1)
+        FROM reservation r
+        LEFT JOIN `user` u ON r.user_id = u.id
+        LEFT JOIN seat s ON r.seat_id = s.id
+        LEFT JOIN room rm ON s.room_id = rm.id
+
+        <include refid="reservationQueryCondition"/>
+    </select>
+
+    <select id="findAllCurrent"
+        resultType="com.anonymous.vo.admin.ReservationAdminVO">
+
+    SELECT
+        r.id AS id,
+        r.user_id AS userId,
+        u.name AS userName,
+        u.username AS username,
+        rm.id AS roomId,
+        rm.name AS roomName,
+        r.seat_id AS seatId,
+        s.seat_code AS seatCode,
+        r.status AS status,
+        CASE r.status
+            WHEN 0 THEN '已预约'
+            WHEN 1 THEN '使用中'
+            WHEN 2 THEN '已完成'
+            WHEN 3 THEN '用户取消'
+            WHEN 4 THEN '已过期'
+            WHEN 5 THEN '管理员取消'
+            WHEN 6 THEN '违约'
+            ELSE '未知'
+        END AS statusText,
+        r.start_time AS startTime,
+        r.end_time AS endTime,
+        r.actual_start_time AS actualStartTime,
+        r.actual_end_time AS actualEndTime
+    FROM reservation r
+    LEFT JOIN `user` u ON r.user_id = u.id
+    LEFT JOIN seat s ON r.seat_id = s.id
+    LEFT JOIN room rm ON s.room_id = rm.id
+    WHERE r.status IN (0, 1)
+
+    ORDER BY r.id DESC
+    LIMIT #{offset}, #{size}
+</select>
+
+    <select id="countReservationsCurrent"
+            resultType="java.lang.Long">
+
+        SELECT COUNT(1)
+        FROM reservation r
+        LEFT JOIN `user` u ON r.user_id = u.id
+        LEFT JOIN seat s ON r.seat_id = s.id
+        LEFT JOIN room rm ON s.room_id = rm.id
+        WHERE r.status IN (0, 1)
+    </select>
+
+</mapper>

@@ -1,0 +1,4 @@
+DELETE FROM reservation;
+DELETE FROM seat;
+DELETE FROM room;
+DELETE FROM user;

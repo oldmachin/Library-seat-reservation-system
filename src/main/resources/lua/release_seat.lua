@@ -1,10 +1,12 @@
-local seatKey = KEYS[1]
-local userId = ARGV[1]
+-- KEYS: [1]lock_key, [2]room_hash
+-- ARGV: [1]seat_id, [2]user_id
 
-local currentOwner = redis.call('get', seatKey)
+local owner = redis.call('GET', KEYS[1])
 
-if currentOwner == userId then
-    return redis.call('del', seatKey)
-else
-    return 0
+if owner and owner ~= ARGV[2] then
+    return -1
 end
+
+redis.call('DEL', KEYS[1])
+redis.call('HSET', KEYS[2], ARGV[1], '0')
+return 1

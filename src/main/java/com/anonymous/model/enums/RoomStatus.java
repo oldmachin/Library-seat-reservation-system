@@ -17,6 +17,10 @@ public enum RoomStatus {
         return code;
     }
 
+    public String getDescription() {
+        return description;
+    }
+
     public static RoomStatus fromCode(int code) {
         for (RoomStatus status : RoomStatus.values()) {
             if (status.getCode() == code) {

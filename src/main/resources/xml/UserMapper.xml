@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.anonymous.mapper.UserMapper">
+
+    <sql id="userQueryCondition">
+        <where>
+            <if test="query.username != null and query.username != ''">
+                AND username LIKE CONCAT('%', #{query.username}, '%')
+            </if>
+
+            <if test="query.name != null and query.name != ''">
+                AND name LIKE CONCAT('%', #{query.name}, '%')
+            </if>
+
+            <if test="query.role != null">
+                AND role = #{query.role}
+            </if>
+
+            <if test="query.status != null">
+                AND status = #{query.status}
+            </if>
+        </where>
+    </sql>
+
+    <select id="findUsersByCondition"
+            resultType="com.anonymous.vo.admin.UserAdminVO">
+
+        SELECT
+        id, name, username, role, status,
+        CASE status
+            WHEN 0 THEN '正常'
+            WHEN 1 THEN '禁用'
+            ELSE '未知'
+        END AS statusText
+        FROM user
+
+        <include refid="userQueryCondition" />
+
+        ORDER BY id ASC
+        LIMIT #{offset}, #{size}
+
+    </select>
+
+    <select id="countUsersByCondition"
+            resultType="java.lang.Long">
+
+        SELECT COUNT(1)
+        FROM user
+
+        <include refid="userQueryCondition" />
+    </select>
+
+    <select id="findUserById"
+          resultType="com.anonymous.vo.admin.UserAdminVO">
+
+        SELECT
+        id, name, username, role, status,
+        CASE status
+        WHEN 0 THEN '正常'
+        WHEN 1 THEN '禁用'
+        ELSE '未知'
+        END AS statusText
+        FROM user
+        WHERE id = #{id}
+
+    </select>
+
+    <update id="updateUser">
+
+        UPDATE user
+        <set>
+            <if test="query.password != null and query.password != ''">
+                password = #{query.password},
+            </if>
+            <if test="query.status != null">
+                status = #{query.status},
+            </if>
+            update_time = NOW()
+        </set>
+
+        WHERE id = #{query.id}
+
+    </update>
+</mapper>

@@ -10,13 +10,16 @@ public class User {
 
     private String password;
 
-    private Integer status;
+    private String role;        // USER / ADMIN
 
-    public User(Long id, String name, String username, String password, Integer status) {
+    private Integer status;     // 0正常 / 1禁用
+
+    public User(Long id, String name, String username, String password, String role, Integer status) {
         this.id = id;
         this.name = name;
         this.username = username;
         this.password = password;
+        this.role = role;
         this.status = status;
     }
 
@@ -50,6 +53,14 @@ public class User {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
+    }
+
+    public String getRole() {
+        return this.role;
     }
 
     public Integer getStatus() {

@@ -1,8 +1,26 @@
+DROP TABLE IF EXISTS reservation;
+DROP TABLE IF EXISTS seat;
+DROP TABLE IF EXISTS room;
+DROP TABLE IF EXISTS user;
+
 CREATE TABLE IF NOT EXISTS user (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(10) NOT NULL,
-    password VARCHAR(20) NOT NULL,
-    status TINYINT NOT NULL DEFAULT 0
+    name VARCHAR(20) NOT NULL,
+    username VARCHAR(20) NOT NULL UNIQUE,
+    password VARCHAR(100) NOT NULL,
+    role VARCHAR(10) NOT NULL DEFAULT 'USER',
+    status TINYINT NOT NULL DEFAULT 1,
+    create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS room (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL,
+    capacity INT NOT NULL,
+    status TINYINT NOT NULL DEFAULT 0,
+    create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS seat (
@@ -11,24 +29,18 @@ CREATE TABLE IF NOT EXISTS seat (
     seat_code VARCHAR(50) NOT NULL,
     type TINYINT NOT NULL DEFAULT 0,
     status TINYINT NOT NULL DEFAULT 0,
+    maintenance_note VARCHAR(255) DEFAULT '',
     x_axis INT,
     y_axis INT,
-    create_time TIMESTAMP,
-    update_time TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS room (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(50) NOT NULL,
-    capacity INT NOT NULL,
-    status TINYINT NOT NULL DEFAULT 0,
-    create_time TIMESTAMP,
-    update_time TIMESTAMP
+    create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_seat_room FOREIGN KEY (room_id) REFERENCES room(id)
 );
 
 CREATE TABLE IF NOT EXISTS reservation (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT NOT NULL,
+    room_id BIGINT NOT NULL,
     seat_id BIGINT NOT NULL,
     start_time TIMESTAMP NOT NULL,
     end_time TIMESTAMP NOT NULL,
@@ -37,39 +49,57 @@ CREATE TABLE IF NOT EXISTS reservation (
     status TINYINT NOT NULL DEFAULT 0,
     version INT NOT NULL DEFAULT 1,
     create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    update_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    update_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_reservation_user FOREIGN KEY (user_id) REFERENCES user(id),
+    CONSTRAINT fk_reservation_room FOREIGN KEY (room_id) REFERENCES room(id),
+    CONSTRAINT fk_reservation_seat FOREIGN KEY (seat_id) REFERENCES seat(id)
 );
 
-INSERT INTO user (username, password, status) VALUES
-('20260001', '123456', 0), -- 核心测试账号
-('20260002', '123456', 0), -- 备用账号
-('20260003', '123456', 0);
+-- 用户
+-- 注意：如果你登录逻辑已经严格使用 BCrypt，这里的密码必须换成 BCrypt 密文
+INSERT INTO user (id, name, username, password, role, status) VALUES
+(1, '系统管理员', 'admin', '123456', 'ADMIN', 1),
+(2, '张三', '20260001', '123456', 'USER', 1),
+(3, '李四', '20260002', '123456', 'USER', 1),
+(4, '王五', '20260003', '123456', 'USER', 0);
 
--- 插入阅览室
--- 包含一个开放、一个维护中的房间
+-- 房间
+-- RoomStatus: 0 AVAILABLE, 1 MAINTAINING, 2 DISCARD
 INSERT INTO room (id, name, capacity, status) VALUES
-(1, '法兰要塞自习室', 50, 0), -- AVAILABLE
-(2, '传火祭祀场休息室', 20, 1); -- MAINTAINING
+(1, '一楼自习室', 50, 0),
+(2, '二楼阅览室', 80, 0),
+(3, '三楼研讨区', 20, 1),
+(4, '四楼封闭区', 30, 2);
 
--- 插入座位 (以 Room 1 为例)
--- 模拟不同状态的座位以测试前端渲染
-INSERT INTO seat (id, room_id, seat_code, status, x_axis, y_axis) VALUES
-(1, 1, 'A-01', 0, 10, 10), -- 空闲 (前端应显示绿色)
-(2, 1, 'A-02', 1, 10, 20), -- 已预约 (前端应显示橙色)
-(3, 1, 'A-03', 2, 20, 10), -- 使用中 (前端应显示红色)
-(4, 1, 'A-04', 4, 20, 20), -- 不可用 (前端应显示灰色)
-(5, 1, 'B-01', 0, 30, 10); -- 另一个空闲座位
+-- 座位
+-- SeatStatus: 0 AVAILABLE, 1 RESERVED, 2 OCCUPIED, 3 AWAY, 4 UNAVAILABLE
+INSERT INTO seat (id, room_id, seat_code, type, status, maintenance_note, x_axis, y_axis) VALUES
+(1, 1, 'A-01', 0, 0, '', 10, 10),
+(2, 1, 'A-02', 0, 1, '', 20, 10),
+(3, 1, 'A-03', 1, 2, '', 30, 10),
+(4, 1, 'A-04', 0, 4, '设备损坏，暂停使用', 40, 10),
+(5, 2, 'B-01', 0, 0, '', 10, 20),
+(6, 2, 'B-02', 1, 0, '', 20, 20),
+(7, 2, 'B-03', 0, 1, '', 30, 20),
+(8, 3, 'C-01', 0, 4, '房间维护中', 10, 30);
 
--- 插入测试预约记录
--- 1. 为用户 20260001 插入一条待签到的记录，测试 checkIn 功能
-INSERT INTO reservation (user_id, seat_id, start_time, end_time, status) VALUES
-(1, 2, '2026-03-20 08:00:00', '2026-03-20 12:00:00', 0);
-
--- 2. 为用户 20260002 插入一条使用中的记录，测试 checkOut/leaveTemp 功能
-INSERT INTO reservation (user_id, seat_id, start_time, end_time, status) VALUES
-(2, 3, '2026-03-19 14:00:00', '2026-03-19 18:00:00', 1);
-
--- 3. 插入一些历史数据，用于测试 getHistory 分页功能
-INSERT INTO reservation (user_id, seat_id, start_time, end_time, status) VALUES
-(1, 1, '2026-03-18 08:00:00', '2026-03-18 10:00:00', 2), -- 已完成
-(1, 5, '2026-03-17 08:00:00', '2026-03-17 10:00:00', 4); -- 已违约
+-- 预约
+-- 这里按你当前管理端代码使用的状态码来放数据：
+-- 0 已预约
+-- 1 使用中
+-- 2 已完成
+-- 3 用户取消
+-- 4 已过期
+-- 5 管理员取消
+-- 6 违约
+INSERT INTO reservation (
+    id, user_id, room_id, seat_id, start_time, end_time,
+    actual_start_time, actual_end_time, status, version
+) VALUES
+(1, 2, 1, 2, '2026-04-05 09:00:00', '2026-04-05 12:00:00', NULL, NULL, 0, 1),
+(2, 3, 1, 3, '2026-04-05 08:30:00', '2026-04-05 11:30:00', '2026-04-05 08:35:00', NULL, 1, 1),
+(3, 2, 1, 1, '2026-04-03 09:00:00', '2026-04-03 11:00:00', '2026-04-03 09:02:00', '2026-04-03 10:50:00', 2, 1),
+(4, 3, 2, 5, '2026-04-02 14:00:00', '2026-04-02 16:00:00', NULL, NULL, 3, 1),
+(5, 2, 2, 7, '2026-04-04 08:00:00', '2026-04-04 10:00:00', NULL, NULL, 4, 1),
+(6, 3, 2, 6, '2026-04-01 13:00:00', '2026-04-01 15:00:00', NULL, NULL, 5, 1),
+(7, 2, 2, 5, '2026-04-04 15:00:00', '2026-04-04 17:00:00', '2026-04-04 15:05:00', '2026-04-04 15:40:00', 6, 1);

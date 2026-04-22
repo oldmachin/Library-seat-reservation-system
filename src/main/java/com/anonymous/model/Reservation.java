@@ -7,6 +7,8 @@ public class Reservation {
 
     private Long userId;
 
+    private Long roomId;
+
     private Long seatId;
 
     private LocalDateTime startTime;
@@ -25,9 +27,10 @@ public class Reservation {
 
     private LocalDateTime updateTime;
 
-    public Reservation(Long id, Long userId, Long seatId, LocalDateTime startTime, LocalDateTime endTime, LocalDateTime actualStartTime, LocalDateTime actualEndTime, Integer status, Integer version, LocalDateTime createTime, LocalDateTime updateTime) {
+    public Reservation(Long id, Long userId, Long roomId, Long seatId, LocalDateTime startTime, LocalDateTime endTime, LocalDateTime actualStartTime, LocalDateTime actualEndTime, Integer status, Integer version, LocalDateTime createTime, LocalDateTime updateTime) {
         this.id = id;
         this.userId = userId;
+        this.roomId = roomId;
         this.seatId = seatId;
         this.startTime = startTime;
         this.endTime = endTime;
@@ -56,6 +59,14 @@ public class Reservation {
 
     public void setUserId(Long userId) {
         this.userId = userId;
+    }
+
+    public Long getRoomId() {
+        return roomId;
+    }
+
+    public void setRoomId(Long roomId) {
+        this.roomId = roomId;
     }
 
     public Long getSeatId() {

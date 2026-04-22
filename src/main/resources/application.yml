@@ -1,9 +1,31 @@
+server:
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true
+      enabled: true
+
 spring:
+  http:
+    encoding:
+      charset: UTF-8
+      force: true
+      enabled: true
   datasource:
-    url: jdbc:mysql://127.0.0.1:3306/library_db?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://127.0.0.1:3306/library_db?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     username: Anonymous
     password: Anonymous
     driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      password:
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
 
 mybatis:
   configuration:
@@ -11,4 +33,10 @@ mybatis:
     map-underscore-to-camel-case: true
     # 打印 SQL 日志（开发阶段强烈建议开启，查看实际执行的 SQL）
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  mapper-locations: classpath*:xml/*.xml
   type-handlers-package: com.anonymous.handler
+
+jwt:
+  secret: Y4OfpnxY7sd8Esqg6Z8tanG1XPXmL4Cyd+vJwj8KR7Y=
+  expire: 3600
+  header: Authorization
