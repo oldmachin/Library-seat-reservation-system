@@ -3,6 +3,7 @@ package com.anonymous.service.Impl;
 import com.anonymous.mapper.SeatMapper;
 import com.anonymous.model.Seat;
 import com.anonymous.model.enums.SeatStatus;
+import com.anonymous.service.RoomSeatBroadcastService;
 import com.anonymous.service.SeatService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -15,6 +16,9 @@ public class SeatServiceImpl implements SeatService {
     @Autowired
     private SeatMapper seatMapper;
 
+    @Autowired
+    private RoomSeatBroadcastService roomSeatBroadcastService;
+
     @Override
     public void updateSeatStatus(Long seatId, SeatStatus status) {
         seatMapper.updateStatus(seatId, status.getCode());
@@ -22,20 +26,30 @@ public class SeatServiceImpl implements SeatService {
 
     @Override
     public void markDefective(Long seatId, String reason) {
+       if (reason == null || reason.trim().isEmpty()) {
+            throw new RuntimeException("损坏原因不能为空");
+       }
+
+       reason = reason.trim();
+
         Seat seat = seatMapper.findById(seatId);
 
         if (seat == null) {
             throw new RuntimeException("座位不存在");
         }
 
-        if (seat.getStatus() != SeatStatus.UNAVAILABLE) {
-
+        if (seat.getStatus() == null) {
+            throw new RuntimeException("座位状态异常");
         }
 
-        seat.setStatus(SeatStatus.UNAVAILABLE);
-        seat.setMaintenanceNote(reason);
+        if (seat.getStatus() == SeatStatus.UNAVAILABLE) {
+            throw new RuntimeException("该座位已被标记损坏");
+        }
+
+        isSeatOperable(seatId);
 
         seatMapper.updateStatusAndNote(seatId, SeatStatus.UNAVAILABLE.getCode(), reason);
+        roomSeatBroadcastService.broadcastRoomSnapshot(seat.getRoomId());
     }
 
     @Override

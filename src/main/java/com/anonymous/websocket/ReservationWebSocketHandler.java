@@ -7,7 +7,9 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
@@ -15,8 +17,12 @@ public class ReservationWebSocketHandler extends TextWebSocketHandler {
 
     private final Map<Long, WebSocketSession> userSessionMap = new ConcurrentHashMap<>();
 
-    private Long getUserId(WebSocketSession wsSession) {
-        Object raw = wsSession.getAttributes().get("userId");
+    private final Map<Long, Set<WebSocketSession>> roomSubscribers = new ConcurrentHashMap<>();
+
+    private final Map<String, Long> sessionRoomMap = new ConcurrentHashMap<>();
+
+    private Long getUserId(WebSocketSession session) {
+        Object raw = session.getAttributes().get("userId");
         if (raw instanceof Long userId) {
             return userId;
         }
@@ -33,13 +39,37 @@ public class ReservationWebSocketHandler extends TextWebSocketHandler {
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
         Long userId = getUserId(session);
         if (userId == null) {
+            session.close();
             return;
         }
         String payload = message.getPayload();
+        String text = (payload == null) ? "" : payload.trim();
 
-        if (session.isOpen()) {
-            session.sendMessage(new TextMessage("服务端已经受到消息：" + payload));
+        if (text.isBlank()) {
+            session.sendMessage(new TextMessage("服务端已经受到消息：" + payload + "，但是服务未被受理"));
+            return;
         }
+        Long roomId;
+        try {
+            roomId = Long.valueOf(text);
+        } catch(NumberFormatException e) {
+            session.sendMessage(new TextMessage("订阅失败：roomId格式错误"));
+            return;
+        }
+        Long oldRoomId = sessionRoomMap.get(session.getId());
+        if (oldRoomId != null) {
+            Set<WebSocketSession> oldSubscribers = roomSubscribers.get(oldRoomId);
+            if (oldSubscribers != null) {
+                oldSubscribers.remove(session);
+                if (oldSubscribers.isEmpty()) {
+                    roomSubscribers.remove(oldRoomId);
+                }
+            }
+        }
+        Set<WebSocketSession> subscribers = roomSubscribers.computeIfAbsent(roomId, key -> ConcurrentHashMap.newKeySet());
+        subscribers.add(session);
+        sessionRoomMap.put(session.getId(), roomId);
+        session.sendMessage(new TextMessage("订阅房间成功：" + roomId));
     }
 
     /**
@@ -50,9 +80,7 @@ public class ReservationWebSocketHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         Long userId = getUserId(session);
-        if (userId != null) {
-            userSessionMap.put(userId, session);
-        } else {
+        if (userId == null) {
             session.close();
         }
     }
@@ -68,6 +96,17 @@ public class ReservationWebSocketHandler extends TextWebSocketHandler {
         Long userId = getUserId(session);
         if (userId != null) {
             userSessionMap.remove(userId, session);
+        }
+
+        Long roomId = sessionRoomMap.remove(session.getId());
+        if (roomId != null) {
+            Set<WebSocketSession> subscribers = roomSubscribers.get(roomId);
+            if (subscribers != null) {
+               subscribers.remove(session);
+                if (subscribers.isEmpty()) {
+                    roomSubscribers.remove(roomId);
+                }
+            }
         }
     }
 
@@ -92,5 +131,37 @@ public class ReservationWebSocketHandler extends TextWebSocketHandler {
             userSessionMap.remove(userId, session);
             return false;
         }
+    }
+
+    public boolean broadcastToRoom(Long roomId, String text) {
+        if (roomId == null || text == null || text.isBlank()) {
+            return false;
+        }
+
+        Set<WebSocketSession> subscribers = roomSubscribers.get(roomId);
+        if (subscribers == null || subscribers.isEmpty()) {
+            return false;
+        }
+        Set<WebSocketSession> cancelSubscribers = new HashSet<>();
+        boolean isSent = false;
+
+        for (WebSocketSession session: subscribers) {
+            if (session.isOpen()) {
+                try {
+                    session.sendMessage(new TextMessage((text)));
+                    isSent = true;
+                } catch (Exception e) {
+                    cancelSubscribers.add(session);
+                }
+            } else {
+                cancelSubscribers.add(session);
+            }
+        }
+
+        subscribers.removeAll(cancelSubscribers);
+        if (subscribers.isEmpty()) {
+            roomSubscribers.remove(roomId);
+        }
+        return isSent;
     }
 }

@@ -16,6 +16,7 @@ import com.anonymous.model.User;
 import com.anonymous.model.enums.ReservationStatus;
 import com.anonymous.model.enums.SeatStatus;
 import com.anonymous.service.AdminReservationService;
+import com.anonymous.service.RoomSeatBroadcastService;
 import com.anonymous.vo.admin.ReservationAdminVO;
 import com.anonymous.vo.admin.ReservationDetailVO;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +26,7 @@ import java.util.List;
 
 @Service
 public class AdminReservationServiceImpl implements AdminReservationService {
+
     @Autowired
     private ReservationMapper reservationMapper;
 
@@ -36,6 +38,9 @@ public class AdminReservationServiceImpl implements AdminReservationService {
 
     @Autowired
     private SeatMapper seatMapper;
+
+    @Autowired
+    private RoomSeatBroadcastService roomSeatBroadcastService;
 
     @Override
     public Page<ReservationAdminVO> listReservations(ReservationQueryDTO queryDTO) {
@@ -186,6 +191,7 @@ public class AdminReservationServiceImpl implements AdminReservationService {
 
         if (rows > 0) {
             seatMapper.updateStatus(reservation.getSeatId(), SeatStatus.AVAILABLE.getCode());
+            roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());
         }
 
         return rows > 0;
@@ -210,6 +216,7 @@ public class AdminReservationServiceImpl implements AdminReservationService {
         }
 
         seatMapper.updateStatus(reservation.getSeatId(), SeatStatus.AVAILABLE.getCode());
+        roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());
     }
 
 
@@ -232,5 +239,6 @@ public class AdminReservationServiceImpl implements AdminReservationService {
         }
 
         seatMapper.updateStatus(reservation.getSeatId(), SeatStatus.AVAILABLE.getCode());
+        roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());
     }
 }

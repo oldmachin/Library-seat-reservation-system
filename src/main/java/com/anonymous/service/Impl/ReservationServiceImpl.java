@@ -10,6 +10,7 @@ import com.anonymous.model.Seat;
 import com.anonymous.model.enums.ReservationStatus;
 import com.anonymous.model.enums.SeatStatus;
 import com.anonymous.service.ReservationService;
+import com.anonymous.service.RoomSeatBroadcastService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +27,9 @@ public class ReservationServiceImpl implements ReservationService {
     @Autowired
     private SeatMapper seatMapper;
 
+    @Autowired
+    private RoomSeatBroadcastService roomSeatBroadcastService;
+
     @Override
     @Transactional
     public Long bookSeat(Long userId, Long seatId, LocalDateTime start, LocalDateTime end) {
@@ -35,7 +39,7 @@ public class ReservationServiceImpl implements ReservationService {
         if (seat == null) {
             throw new RuntimeException("座位不存在");
         }
-        if (seat.getStatus() == null || seat.getStatus() != SeatStatus.AVAILABLE) {
+        if (seat.getStatus() == null || seat.getStatus() == SeatStatus.UNAVAILABLE) {
             throw new RuntimeException("当前座位不可预约");
         }
 
@@ -56,7 +60,8 @@ public class ReservationServiceImpl implements ReservationService {
         reservation.setEndTime(end);
         reservation.setStatus(ReservationStatus.PENDING.getCode());
         reservationMapper.insert(reservation);
-        seatMapper.updateStatus(seatId, SeatStatus.RESERVED.getCode());
+
+        roomSeatBroadcastService.broadcastRoomSnapshot(seat.getRoomId());
 
         return reservation.getId();
     }
@@ -65,7 +70,7 @@ public class ReservationServiceImpl implements ReservationService {
     @Transactional(rollbackFor = Exception.class)
     public boolean cancelReservation(Long userId, Long seatId) {
         try {
-            Reservation reservation = reservationMapper.findByUserIdAndSeatId(userId, seatId);
+            Reservation reservation = reservationMapper.findLatestPendingByUserIdAndSeatId(userId, seatId);
             if (reservation == null) {
                 return false;
             }
@@ -80,7 +85,7 @@ public class ReservationServiceImpl implements ReservationService {
             if (rows == 0) {
                 return false;
             }
-            seatMapper.updateStatus(seatId, SeatStatus.AVAILABLE.getCode());
+            roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());
             return true;
         } catch (Exception e) {
             throw new RuntimeException("取消预约失败" + e.getMessage(), e);
@@ -118,6 +123,7 @@ public class ReservationServiceImpl implements ReservationService {
 
             seatMapper.updateStatus(seatId, SeatStatus.OCCUPIED.getCode());
 //            log.info("【签到成功】用户 {} 已成功入座 {}", userId, seatId);
+            roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());
             return true;
         } catch (Exception e) {
 //            log.error("【系统异常】签到落库失败！userId: {}, seatId: {}", userId, seatId, e);
@@ -148,6 +154,7 @@ public class ReservationServiceImpl implements ReservationService {
 
             seatMapper.updateStatus(reservation.getSeatId(), SeatStatus.AVAILABLE.getCode());
 //            log.info("【签退成功】用户{}已成功签退", userId);
+            roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());
             return true;
         } catch (Exception e) {
 //            log.error("【系统异常】签退失败！userId: {}", userId, e);
@@ -167,6 +174,7 @@ public class ReservationServiceImpl implements ReservationService {
             ReservationStatusValidator.validateLeaveTemp(reservation.getStatus());
 
             seatMapper.updateStatus(reservation.getSeatId(), SeatStatus.AWAY.getCode());
+            roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());
             return true;
         } catch (Exception e) {
             throw new RuntimeException("暂离事务执行失败", e);
@@ -191,6 +199,7 @@ public class ReservationServiceImpl implements ReservationService {
             ReservationStatusValidator.validateReturnTemp(seat.getStatus().getCode());
 
             seatMapper.updateStatus(seatId, SeatStatus.OCCUPIED.getCode());
+            roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());
             return true;
         } catch (Exception e) {
             throw new RuntimeException("返回事务执行失败" + e.getMessage(), e);
@@ -217,8 +226,7 @@ public class ReservationServiceImpl implements ReservationService {
                 );
 
                 if (rows > 0) {
-                    Long seatId = reservation.getSeatId();
-                    seatMapper.updateStatus(seatId, SeatStatus.AVAILABLE.getCode());
+                    roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());
 //                    log.info("【座位回收】座位 {} 已重新释放到公共资源池", seatId);
                 } else {
 //                    log.info("【极限抢救】订单 {} 状态更新失败，用户可能在最后一秒完成了签到", reservationId);

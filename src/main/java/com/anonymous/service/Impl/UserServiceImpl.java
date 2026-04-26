@@ -6,23 +6,66 @@ import com.anonymous.model.User;
 import com.anonymous.service.UserService;
 import com.anonymous.vo.UserReputationVO;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
 public class UserServiceImpl implements UserService {
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
     @Autowired
     private UserMapper userMapper;
 
     @Autowired
     private ReservationMapper reservationMapper;
 
+    private boolean isBcryptPassword(String password) {
+        return password != null
+                && (password.startsWith("$2a$")
+                || password.startsWith("$2b$")
+                || password.startsWith("$2y$"));
+    }
+
+    private boolean passwordMatches(String rawPassword, String storedPassword) {
+        if (rawPassword == null || storedPassword == null) {
+            return false;
+        }
+
+        if (isBcryptPassword(storedPassword)) {
+            return passwordEncoder.matches(rawPassword, storedPassword);
+        }
+
+        return  rawPassword.equals(storedPassword);
+    }
+
+    private void upgradePasswordIfNecessary(User user, String rawPassword) {
+        if (!isBcryptPassword(user.getPassword())) {
+            String encodedPassword = passwordEncoder.encode(rawPassword);
+            userMapper.updatePasswordById(user.getId(), encodedPassword);
+        }
+    }
+
     @Override
     public User login(String username, String password) {
-        User user = userMapper.findByUsername(username);
-        if (user != null && user.getPassword().equals(password)) {
-            return user;
+        if (username == null || username.trim().isEmpty()) {
+            throw new RuntimeException("用户名不能为空");
         }
-        throw new RuntimeException("用户名或密码错误。");
+        if (password == null || password.isEmpty()) {
+            throw new RuntimeException("密码不能为空");
+        }
+
+        User user = userMapper.findByUsername(username.trim());
+        if (user == null || !passwordMatches(password, user.getPassword())) {
+            throw new RuntimeException("用户名或密码错误。");
+        }
+        if (user.getStatus() == null || user.getStatus() != 0) {
+            throw new RuntimeException("账号已被禁用，请联系管理员");
+        }
+        upgradePasswordIfNecessary(user, password);
+        user.setPassword(null);
+        return user;
     }
 
     @Override
@@ -65,11 +108,11 @@ public class UserServiceImpl implements UserService {
         }
 
         User user = findById(id);
-        if (!oldPassword.equals(user.getPassword())) {
+        if (!passwordMatches(oldPassword, user.getPassword())) {
             throw new RuntimeException("旧密码输入错误");
         }
-
-        int rows = userMapper.updatePasswordById(id, newPassword);
+        String encodedPassword = passwordEncoder.encode(newPassword);
+        int rows = userMapper.updatePasswordById(id, encodedPassword);
         return rows > 0;
     }
 

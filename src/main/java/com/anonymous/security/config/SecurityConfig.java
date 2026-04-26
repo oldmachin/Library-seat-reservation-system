@@ -36,8 +36,9 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-//                        .requestMatchers("/api/v1/user/login").permitAll()
-//                        .requestMatchers("/api/v1/**").authenticated()
+                        .requestMatchers("/api/v1/user/login").permitAll()
+                        .requestMatchers("/ws/reservation").permitAll()
+                        .requestMatchers("/api/v1/**").authenticated()
                         .anyRequest().permitAll())
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();

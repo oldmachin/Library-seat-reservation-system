@@ -18,6 +18,9 @@ import java.util.ArrayList;
 
 @Component
 public class JwtAuthFilter extends OncePerRequestFilter {
+
+    private final static String AUTH_USER_PREFIX = "auth:user:";
+
     @Autowired
     private JwtUtil jwtUtil;
 
@@ -37,18 +40,24 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         try {
             Claims claims = jwtUtil.getClaims(token);
+
+            if (claims == null || claims.getSubject() == null || claims.getSubject().isBlank()) {
+                throw new RuntimeException("token无效或已经过期");
+            }
+
             String userId = claims.getSubject();
 
-//            String cachedToken  = redisTemplate.opsForValue().get("auth:user:" + userId);
-//            if (cachedToken == null || !cachedToken.equals(token)) {
-//                throw new RuntimeException("会话已失效或已在别处登录");
-//            }
+            String cachedToken  = redisTemplate.opsForValue().get(AUTH_USER_PREFIX + userId);
+            if (cachedToken == null || !cachedToken.equals(token)) {
+                throw new RuntimeException("会话已失效或已在别处登录");
+            }
 
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                     userId, null, new ArrayList<>()
             );
             SecurityContextHolder.getContext().setAuthentication(authentication);
         } catch (Exception e) {
+            SecurityContextHolder.clearContext();
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.setContentType("application/json;charset=UTF-8");
             response.getWriter().write("{\"code\":401, \"message\":\"" + e.getMessage() + "\"}");
@@ -56,5 +65,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
+        String path = request.getServletPath();
+        return "/api/v1/user/login".equals(path) || "/ws/reservation".equals(path);
     }
 }

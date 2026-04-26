@@ -4,6 +4,7 @@ import com.anonymous.common.util.JwtUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.http.server.ServletServerHttpRequest;
@@ -18,6 +19,11 @@ public class WebSocketAuthInterceptor implements HandshakeInterceptor {
 
     @Autowired
     private JwtUtil jwtUtil;
+
+    @Autowired
+    private StringRedisTemplate redisTemplate;
+
+    private final static String AUTH_USER_PREFIX = "auth:user:";
 
     /**
      * 在建立WebSocket对话之前，尝试解析用户的userId
@@ -46,6 +52,11 @@ public class WebSocketAuthInterceptor implements HandshakeInterceptor {
                 return false;
             }
             Long userId = Long.valueOf(subject);
+
+            String cachedToken = redisTemplate.opsForValue().get(AUTH_USER_PREFIX + userId);
+            if (cachedToken == null || !cachedToken.equals(token)) {
+                return false;
+            }
             attributes.put("userId", userId);
             return true;
         } catch (Exception e) {

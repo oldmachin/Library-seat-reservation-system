@@ -69,4 +69,7 @@ public interface ReservationMapper {
     List<ReservationAdminVO> findAllCurrent(@Param("offset") Integer offset, @Param("size") Integer size);
 
     Long countReservationsCurrent();
+
+    @Select("SELECT * FROM reservation WHERE user_id = #{userId} AND seatId = #{seatId} AND status = 0 ORDER BY create_time LIMIT 1")
+    Reservation findLatestPendingByUserIdAndSeatId(@Param("userId") Long userId, @Param("seatId") Long seatId);
 }

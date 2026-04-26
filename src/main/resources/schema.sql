@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS user (
     username VARCHAR(20) NOT NULL UNIQUE,
     password VARCHAR(100) NOT NULL,
     role VARCHAR(10) NOT NULL DEFAULT 'USER',
-    status TINYINT NOT NULL DEFAULT 1,
+    status TINYINT NOT NULL DEFAULT 0,
     create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     update_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -58,10 +58,10 @@ CREATE TABLE IF NOT EXISTS reservation (
 -- 用户
 -- 注意：如果你登录逻辑已经严格使用 BCrypt，这里的密码必须换成 BCrypt 密文
 INSERT INTO user (id, name, username, password, role, status) VALUES
-(1, '系统管理员', 'admin', '123456', 'ADMIN', 1),
-(2, '张三', '20260001', '123456', 'USER', 1),
-(3, '李四', '20260002', '123456', 'USER', 1),
-(4, '王五', '20260003', '123456', 'USER', 0);
+(1, '系统管理员', 'admin', '123456', 'ADMIN', 0),
+(2, '张三', '20260001', '123456', 'USER', 0),
+(3, '李四', '20260002', '123456', 'USER', 0),
+(4, '王五', '20260003', '123456', 'USER', 1);
 
 -- 房间
 -- RoomStatus: 0 AVAILABLE, 1 MAINTAINING, 2 DISCARD

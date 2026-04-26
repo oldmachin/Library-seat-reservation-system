@@ -45,7 +45,7 @@ public class ReservationController {
 
    @PostMapping("/check-in")
    public Result<Boolean> checkInReservation(@RequestBody SeatActionRequestDTO request) {
-       boolean result = reservationService.checkIn(request.userId(), request.seatId());
+       boolean result = reservationService.checkIn(SecurityUtils.getCurrentUserId(), request.seatId());
 
        if (result) {
            return Result.success(true, "签到成功");
@@ -54,8 +54,9 @@ public class ReservationController {
    }
 
    @PostMapping("/check-out")
-   public Result<Boolean> checkOutReservation(@RequestBody SeatActionRequestDTO request) {
-       boolean result = reservationService.checkOut(request.userId());
+   public Result<Boolean> checkOutReservation() {
+       boolean result = reservationService.checkOut(SecurityUtils.getCurrentUserId());
+
        if (result) {
            return Result.success(true, "签退成功");
        }
@@ -63,8 +64,8 @@ public class ReservationController {
    }
 
    @PostMapping("/leave-temp")
-   public Result<Boolean> leaveTemporary(@RequestBody SeatActionRequestDTO request) {
-       boolean result = reservationService.leaveTemp(request.userId());
+   public Result<Boolean> leaveTemporary() {
+       boolean result = reservationService.leaveTemp(SecurityUtils.getCurrentUserId());
        if (result) {
            return Result.success(true, "暂离成功");
        }
@@ -73,7 +74,7 @@ public class ReservationController {
 
    @PostMapping("/return-temp")
    public Result<Boolean> returnTemporary(@RequestBody SeatActionRequestDTO request) {
-       boolean result = reservationService.returnTemp(request.userId(), request.seatId());
+       boolean result = reservationService.returnTemp(SecurityUtils.getCurrentUserId(), request.seatId());
        if (result) {
            return Result.success(true, "返回成功");
        }

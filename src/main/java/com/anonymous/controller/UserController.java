@@ -14,10 +14,14 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 @RestController
 @RequestMapping("/api/v1/user")
 public class UserController {
+
+    private static final String AUTH_USER_PREFIX = "auth:user:";
+
     @Autowired
     private UserService userService;
 
@@ -27,19 +31,36 @@ public class UserController {
     @Autowired
     private StringRedisTemplate redisTemplate;
 
+    private Map<String, Object> buildUserInfo(User user) {
+        Map<String, Object> userInfo = new HashMap<>();
+        userInfo.put("id", user.getId());
+        userInfo.put("name", user.getName());
+        userInfo.put("username", user.getUsername());
+        userInfo.put("role", user.getRole());
+        userInfo.put("status", user.getStatus());
+        return userInfo;
+    }
+
     @PostMapping("/login")
     public Result<Map<String, Object>> login(@RequestBody User loginUser) {
         User user = userService.login(loginUser.getUsername(), loginUser.getPassword());
 
         String token = jwtUtil.createToken(user.getId(), user.getUsername());
 
-//        redisTemplate.opsForValue().set("auth:user:" + user.getId(), token, 1, TimeUnit.HOURS);
+        redisTemplate.opsForValue().set(AUTH_USER_PREFIX + user.getId(), token, 1, TimeUnit.HOURS);
 
         Map<String, Object> data = new HashMap<>();
         data.put("token", token);
-        data.put("user", user);
+        data.put("user", buildUserInfo(user));
 
         return Result.success(data, "欢迎回来：" + user.getName());
+    }
+
+    @PostMapping("/logout")
+    public Result<Boolean> logout() {
+        Long userId = SecurityUtils.getCurrentUserId();
+        redisTemplate.delete(AUTH_USER_PREFIX + userId);
+        return Result.success(true, "退出登录成功");
     }
 
     @GetMapping("/me")
@@ -47,13 +68,7 @@ public class UserController {
         Long userId = SecurityUtils.getCurrentUserId();
         User user = userService.findById(userId);
 
-        Map<String, Object> data = new HashMap<>();
-        data.put("id", user.getId());
-        data.put("name", user.getName());
-        data.put("username", user.getUsername());
-        data.put("role", user.getRole());
-        data.put("status", user.getStatus());
-        return Result.success(data, "查询成功");
+        return Result.success(buildUserInfo(user), "查询成功");
     }
 
     @PutMapping("/me")
