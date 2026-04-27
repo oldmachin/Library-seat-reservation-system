@@ -35,4 +35,12 @@ public interface UserMapper {
     UserAdminVO findUserById(@Param("id") Long id);
 
     int updateUser(@Param("query") UserUpdateDTO queryDTO);
+
+    @Select("SELECT * FROM user WHERE id = #{id} FOR UPDATE")
+    User findByIdForUpdate(@Param("id") Long id);
+
+    @Update("UPDATE user SET reputation_score = #{score}, blacklist_until = #{blacklistUntil}, update_time = NOW() WHERE id = #{id}")
+int updateReputationState(@Param("id") Long id,
+                          @Param("score") Integer score,
+                          @Param("blacklistUntil") java.time.LocalDateTime blacklistUntil);
 }

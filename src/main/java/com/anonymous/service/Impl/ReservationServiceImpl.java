@@ -4,30 +4,34 @@ import com.anonymous.common.Page;
 import com.anonymous.common.TimeSlot;
 import com.anonymous.common.util.ReservationStatusValidator;
 import com.anonymous.common.util.ReservationTimeValidator;
-import com.anonymous.mapper.ReservationMapper;
-import com.anonymous.mapper.ReservationSlotMapper;
-import com.anonymous.mapper.RoomMapper;
-import com.anonymous.mapper.SeatMapper;
-import com.anonymous.model.Reservation;
-import com.anonymous.model.ReservationSlot;
-import com.anonymous.model.Room;
-import com.anonymous.model.Seat;
+import com.anonymous.mapper.*;
+import com.anonymous.model.*;
 import com.anonymous.model.enums.ReservationStatus;
 import com.anonymous.model.enums.RoomStatus;
 import com.anonymous.model.enums.SeatStatus;
+import com.anonymous.service.ReputationService;
 import com.anonymous.service.ReservationService;
 import com.anonymous.service.RoomSeatBroadcastService;
+import com.anonymous.service.UserService;
 import com.anonymous.vo.QuickReservationResultVO;
+import com.anonymous.vo.UserReputationVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 @Service
 public class ReservationServiceImpl implements ReservationService {
+
+    private final static int NORMAL_BOOK_THRESHOLD = 80;
+
+    private final static int QUICK_BOOK_THRESHOLD = 60;
+
+    private final static DateTimeFormatter BLACKLIST_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     @Autowired
     private  ReservationMapper reservationMapper;
@@ -44,11 +48,38 @@ public class ReservationServiceImpl implements ReservationService {
     @Autowired
     private ReservationSlotMapper reservationSlotMapper;
 
+    @Autowired
+    private ReputationService reputationService;
+
+    private User validateBookingPermission(Long userId, boolean quickBooking) {
+        User user = reputationService.refreshBlacklistIfNeeded(userId);
+        int score = user.getReputationScore() == null ? 100 : user.getReputationScore();
+
+        if (user.getBlacklistUntil() != null && user.getBlacklistUntil().isAfter(LocalDateTime.now())) {
+            throw new RuntimeException(
+                    "当前信誉分过低，已进入黑名单，需等待至 "
+                            + user.getBlacklistUntil().format(BLACKLIST_TIME_FORMATTER)
+                            + " 后恢复预约权限"
+            );
+        }
+
+        if (score < QUICK_BOOK_THRESHOLD) {
+            throw new RuntimeException("当前信誉分过低，暂时无法预约");
+        }
+
+        if (!quickBooking && score < NORMAL_BOOK_THRESHOLD) {
+            throw new RuntimeException("当前信誉分低于80分，仅可使用快捷选座");
+        }
+
+        return user;
+    }
+
     @Override
     @Transactional
     public Long bookSeat(Long userId, Long seatId, LocalDateTime start, LocalDateTime end) {
         ReservationTimeValidator.validateBookTimeRange(start, end);
         validateFutureBookTime(start);
+        validateBookingPermission(userId, false);
         List<TimeSlot> slots = ReservationTimeValidator.resolveContinuousSlots(start, end);
 
         Seat seat = seatMapper.findById(seatId);
@@ -91,8 +122,12 @@ public class ReservationServiceImpl implements ReservationService {
             if (rows == 0) {
                 return false;
             }
-            roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());
             reservationSlotMapper.deleteByReservationId(reservation.getId());
+            roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());
+            reputationService.onUserCancelled(
+                    reservation.getUserId(),
+                    reservation.getId()
+            );
             return true;
         } catch (Exception e) {
             throw new RuntimeException("取消预约失败" + e.getMessage(), e);
@@ -119,9 +154,9 @@ public class ReservationServiceImpl implements ReservationService {
             ReservationStatusValidator.validateCheckIn(reservation.getStatus());
 
             int rows = reservationMapper.updateStatus(
-                reservation.getId(),
-                ReservationStatus.PENDING.getCode(),
-                ReservationStatus.IN_USE.getCode());
+                    reservation.getId(),
+                    ReservationStatus.PENDING.getCode(),
+                    ReservationStatus.IN_USE.getCode());
 
             if (rows == 0) {
 //                log.error("【并发冲突】更新预约单状态失败，可能已被其他线程修改。单号: {}", reservation.getId());
@@ -150,7 +185,7 @@ public class ReservationServiceImpl implements ReservationService {
 //                log.warn("【签退失败】用户{}没有待签退的记录", userId);
                 throw new RuntimeException("您没有待签退的记录，请您先预约");
             }
-            
+
             ReservationStatusValidator.validateCheckOut(reservation.getStatus());
 
             int rows = reservationMapper.updateStatus(reservation.getId(), ReservationStatus.IN_USE.getCode(), ReservationStatus.COMPLETED.getCode());
@@ -163,6 +198,7 @@ public class ReservationServiceImpl implements ReservationService {
             seatMapper.updateStatus(reservation.getSeatId(), SeatStatus.AVAILABLE.getCode());
 //            log.info("【签退成功】用户{}已成功签退", userId);
             roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());;
+            reputationService.onReservationCompleted(reservation.getUserId(), reservation.getId());
             return true;
         } catch (Exception e) {
 //            log.error("【系统异常】签退失败！userId: {}", userId, e);
@@ -236,6 +272,7 @@ public class ReservationServiceImpl implements ReservationService {
                 if (rows > 0) {
                     reservationSlotMapper.deleteByReservationId(reservation.getId());
                     roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());
+                    reputationService.onReservationExpired(reservation.getUserId(), reservation.getId());
 //                    log.info("【座位回收】座位 {} 已重新释放到公共资源池", seatId);
                 } else {
 //                    log.info("【极限抢救】订单 {} 状态更新失败，用户可能在最后一秒完成了签到", reservationId);
@@ -265,36 +302,36 @@ public class ReservationServiceImpl implements ReservationService {
     }
 
     private Long tryCreatePendingReservation(Long userId, Seat seat, LocalDateTime start, LocalDateTime end, List<TimeSlot> slots) {
-    if (seat.getStatus() == null || seat.getStatus() == SeatStatus.UNAVAILABLE) {
-        return null;
-    }
+        if (seat.getStatus() == null || seat.getStatus() == SeatStatus.UNAVAILABLE) {
+            return null;
+        }
 
-    int overlap = reservationMapper.countOverlap(seat.getId(), start, end);
-    if (overlap > 0) {
-        return null;
-    }
+        int overlap = reservationMapper.countOverlap(seat.getId(), start, end);
+        if (overlap > 0) {
+            return null;
+        }
 
-    Reservation reservation = new Reservation();
-    reservation.setUserId(userId);
-    reservation.setRoomId(seat.getRoomId());
-    reservation.setSeatId(seat.getId());
-    reservation.setStartTime(start);
-    reservation.setEndTime(end);
-    reservation.setStatus(ReservationStatus.PENDING.getCode());
-    reservationMapper.insert(reservation);
+        Reservation reservation = new Reservation();
+        reservation.setUserId(userId);
+        reservation.setRoomId(seat.getRoomId());
+        reservation.setSeatId(seat.getId());
+        reservation.setStartTime(start);
+        reservation.setEndTime(end);
+        reservation.setStatus(ReservationStatus.PENDING.getCode());
+        reservationMapper.insert(reservation);
 
-    List<ReservationSlot> slotRecords = slots.stream().map(slot -> {
-        ReservationSlot item = new ReservationSlot();
-        item.setReservationId(reservation.getId());
-        item.setUserId(userId);
-        item.setRoomId(seat.getRoomId());
-        item.setSeatId(seat.getId());
-        item.setReserveDate(start.toLocalDate());
-        item.setSlotCode(slot.getCode());
-        item.setSlotStartTime(slot.getStartTime());
-        item.setSlotEndTime(slot.getEndTime());
-        return item;
-    }).toList();
+        List<ReservationSlot> slotRecords = slots.stream().map(slot -> {
+            ReservationSlot item = new ReservationSlot();
+            item.setReservationId(reservation.getId());
+            item.setUserId(userId);
+            item.setRoomId(seat.getRoomId());
+            item.setSeatId(seat.getId());
+            item.setReserveDate(start.toLocalDate());
+            item.setSlotCode(slot.getCode());
+            item.setSlotStartTime(slot.getStartTime());
+            item.setSlotEndTime(slot.getEndTime());
+            return item;
+        }).toList();
 
         try {
             reservationSlotMapper.batchInsert(slotRecords);
@@ -314,39 +351,39 @@ public class ReservationServiceImpl implements ReservationService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public QuickReservationResultVO quickBook(Long userId, LocalDateTime start, LocalDateTime end) {
-    ReservationTimeValidator.validateBookTimeRange(start, end);
-    validateFutureBookTime(start);
-    List<TimeSlot> slots = ReservationTimeValidator.resolveContinuousSlots(start, end);
+        ReservationTimeValidator.validateBookTimeRange(start, end);
+        validateFutureBookTime(start);
+        validateBookingPermission(userId, true);
+        List<TimeSlot> slots = ReservationTimeValidator.resolveContinuousSlots(start, end);
 
-    if (reservationMapper.countActiveReservationsByUserId(userId) > 0) {
-        throw new RuntimeException("抱歉，您当前已有生效中的预约，不能重复占座！");
-    }
+        if (reservationMapper.countActiveReservationsByUserId(userId) > 0) {
+            throw new RuntimeException("抱歉，您当前已有生效中的预约，不能重复占座！");
+        }
 
-    List<Room> rooms = roomMapper.findAllByStatuses(List.of(RoomStatus.AVAILABLE.getCode()));
-    rooms.sort(Comparator.comparing(Room::getId));
+        List<Room> rooms = roomMapper.findAllByStatuses(List.of(RoomStatus.AVAILABLE.getCode()));
+        rooms.sort(Comparator.comparing(Room::getId));
 
-    for (Room room : rooms) {
-        List<Seat> seats = seatMapper.findByRoomId(room.getId()).stream()
-                .filter(seat -> seat.getStatus() != null && seat.getStatus() != SeatStatus.UNAVAILABLE)
-                .sorted(Comparator.comparing(Seat::getSeatCode, Comparator.nullsLast(String::compareToIgnoreCase)))
-                .toList();
+        for (Room room : rooms) {
+            List<Seat> seats = seatMapper.findByRoomId(room.getId()).stream()
+                    .filter(seat -> seat.getStatus() != null && seat.getStatus() != SeatStatus.UNAVAILABLE)
+                    .sorted(Comparator.comparing(Seat::getSeatCode, Comparator.nullsLast(String::compareToIgnoreCase)))
+                    .toList();
 
-        for (Seat seat : seats) {
-            Long reservationId = tryCreatePendingReservation(userId, seat, start, end, slots);
-            if (reservationId != null) {
-                roomSeatBroadcastService.broadcastRoomSnapshot(room.getId());
-                return new QuickReservationResultVO(
-                        reservationId,
-                        room.getId(),
-                        room.getName(),
-                        seat.getId(),
-                        seat.getSeatCode()
-                );
+            for (Seat seat : seats) {
+                Long reservationId = tryCreatePendingReservation(userId, seat, start, end, slots);
+                if (reservationId != null) {
+                    roomSeatBroadcastService.broadcastRoomSnapshot(room.getId());
+                    return new QuickReservationResultVO(
+                            reservationId,
+                            room.getId(),
+                            room.getName(),
+                            seat.getId(),
+                            seat.getSeatCode()
+                    );
+                }
             }
         }
+
+        throw new RuntimeException("当前时间暂无可分配座位，请稍后再试或切换时间段。");
     }
-
-    throw new RuntimeException("当前时间暂无可分配座位，请稍后再试或切换时间段。");
-}
-
 }

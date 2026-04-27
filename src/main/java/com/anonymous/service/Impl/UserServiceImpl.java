@@ -1,13 +1,19 @@
 package com.anonymous.service.Impl;
 
+import com.anonymous.common.Page;
+import com.anonymous.mapper.ReputationRecordMapper;
 import com.anonymous.mapper.UserMapper;
 import com.anonymous.mapper.ReservationMapper;
 import com.anonymous.model.User;
+import com.anonymous.service.ReputationService;
 import com.anonymous.service.UserService;
+import com.anonymous.vo.ReputationRecordVO;
 import com.anonymous.vo.UserReputationVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 @Service
 public class UserServiceImpl implements UserService {
@@ -20,6 +26,12 @@ public class UserServiceImpl implements UserService {
 
     @Autowired
     private ReservationMapper reservationMapper;
+
+    @Autowired
+    private ReputationRecordMapper reputationRecordMapper;
+
+    @Autowired
+    private ReputationService reputationService;
 
     private boolean isBcryptPassword(String password) {
         return password != null
@@ -118,6 +130,8 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserReputationVO getUserReputation(Long id) {
+        User user = reputationService.refreshBlacklistIfNeeded(id);
+
         int completedCount = reservationMapper.countByUserIdAndStatus(id, 2);
         int userCancelledCount = reservationMapper.countByUserIdAndStatus(id, 3);
         int adminCancelledCount = reservationMapper.countByUserIdAndStatus(id, 5);
@@ -127,13 +141,7 @@ public class UserServiceImpl implements UserService {
         int cancelledCount = userCancelledCount + adminCancelledCount;
         int totalViolatedCount = expiredCount + violatedCount;
 
-        int score = 100 + completedCount - cancelledCount * 2 - totalViolatedCount * 10;
-        if (score < 0) {
-            score = 0;
-        }
-        if (score > 120) {
-            score = 120;
-        }
+        int score = user.getReputationScore() == null ? 100 : user.getReputationScore();
 
         String level;
         if (score >= 105) {
@@ -146,12 +154,53 @@ public class UserServiceImpl implements UserService {
             level = "较低";
         }
 
+        String accessMode;
+        if (user.getBlacklistUntil() != null && user.getBlacklistUntil().isAfter(java.time.LocalDateTime.now())) {
+            accessMode = "BLOCKED";
+        } else if (score >= 80) {
+            accessMode = "NORMAL";
+        } else if (score >= 60) {
+            accessMode = "QUICK_ONLY";
+        } else {
+            accessMode = "BLOCKED";
+        }
+
         return new UserReputationVO(
                 score,
                 level,
                 completedCount,
                 cancelledCount,
-                totalViolatedCount
+                totalViolatedCount,
+                user.getBlacklistUntil(),
+                accessMode
         );
+    }
+
+    @Override
+    public Page<ReputationRecordVO> getReputationRecords(Long userId, int pageNum, int pageSize) {
+        if (pageNum < 1) {
+            pageNum = 1;
+        }
+        if (pageSize < 1) {
+            pageSize = 10;
+        }
+
+        int offset = (pageNum - 1) * pageSize;
+        long total = reputationRecordMapper.countByUserId(userId);
+
+        List<ReputationRecordVO> records = reputationRecordMapper.findPageByUserId(userId, pageSize, offset)
+                .stream()
+                .map(record -> new ReputationRecordVO(
+                        record.getId(),
+                        record.getReservationId(),
+                        record.getEventType(),
+                        record.getScoreDelta(),
+                        record.getScoreAfter(),
+                        record.getReason(),
+                        record.getCreateTime()
+                ))
+                .toList();
+
+        return new Page<>(records, total, pageNum, pageSize);
     }
 }

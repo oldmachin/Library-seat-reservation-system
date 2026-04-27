@@ -1,3 +1,5 @@
+DROP TABLE IF EXISTS reputation_record;
+DROP TABLE IF EXISTS reservation_slot;
 DROP TABLE IF EXISTS reservation;
 DROP TABLE IF EXISTS seat;
 DROP TABLE IF EXISTS room;
@@ -9,6 +11,8 @@ CREATE TABLE IF NOT EXISTS user (
     username VARCHAR(20) NOT NULL UNIQUE,
     password VARCHAR(100) NOT NULL,
     role VARCHAR(10) NOT NULL DEFAULT 'USER',
+    reputation_score INT NOT NULL DEFAULT 100,
+    blacklist_until TIMESTAMP NULL DEFAULT NULL,
     status TINYINT NOT NULL DEFAULT 0,
     create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     update_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -71,6 +75,24 @@ CREATE TABLE IF NOT EXISTS reservation_slot (
     UNIQUE KEY uk_seat_date_slot (seat_id, reserve_date, slot_code),
     KEY idx_slot_reservation (reservation_id),
     KEY idx_slot_room_date (room_id, reserve_date)
+);
+
+CREATE TABLE IF NOT EXISTS reputation_record (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    reservation_id BIGINT NULL,
+    event_type VARCHAR(32) NOT NULL,
+    operator_id BIGINT NULL AFTER reservation_id,
+    score_delta INT NOT NULL,
+    score_before INT NOT NULL DEFAULT 100,
+    score_after INT NOT NULL,
+    blacklist_until TIMESTAMP NULL DEFAULT NULL,
+    reason VARCHAR(255) NOT NULL DEFAULT '',
+    create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_reputation_user FOREIGN KEY (user_id) REFERENCES user(id),
+    CONSTRAINT fk_reputation_reservation FOREIGN KEY (reservation_id) REFERENCES reservation(id) ON DELETE SET NULL,
+    KEY idx_reputation_user_time (user_id, create_time),
+    KEY idx_reputation_reservation (reservation_id)
 );
 
 -- 用户

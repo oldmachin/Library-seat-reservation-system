@@ -1,5 +1,7 @@
 package com.anonymous.model;
 
+import java.time.LocalDateTime;
+
 public class User {
 
     private Long id;
@@ -13,6 +15,26 @@ public class User {
     private String role;        // USER / ADMIN
 
     private Integer status;     // 0正常 / 1禁用
+
+    private Integer reputationScore;
+
+    public LocalDateTime getBlacklistUntil() {
+        return blacklistUntil;
+    }
+
+    public void setBlacklistUntil(LocalDateTime blacklistUntil) {
+        this.blacklistUntil = blacklistUntil;
+    }
+
+    public Integer getReputationScore() {
+        return reputationScore;
+    }
+
+    public void setReputationScore(Integer reputationScore) {
+        this.reputationScore = reputationScore;
+    }
+
+    private LocalDateTime blacklistUntil;
 
     public User(Long id, String name, String username, String password, String role, Integer status) {
         this.id = id;

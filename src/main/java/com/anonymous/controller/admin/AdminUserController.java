@@ -2,10 +2,13 @@ package com.anonymous.controller.admin;
 
 import com.anonymous.common.Page;
 import com.anonymous.common.Result;
+import com.anonymous.common.util.SecurityUtils;
 import com.anonymous.dto.admin.reservation.ReservationQueryDTO;
 import com.anonymous.dto.admin.user.UserQueryDTO;
 import com.anonymous.dto.admin.user.UserUpdateDTO;
 import com.anonymous.service.AdminUserService;
+import com.anonymous.vo.ReputationAdjustDTO;
+import com.anonymous.vo.UserReputationVO;
 import com.anonymous.vo.admin.ReservationAdminVO;
 import com.anonymous.vo.admin.UserAdminVO;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,5 +56,18 @@ public class AdminUserController {
 
         );
         return Result.success(adminUserService.findUserReservation(dto), "查询用户预约成功");
+    }
+
+    @PostMapping("/{id}/reputation-adjust")
+    public Result<UserReputationVO> adjustUserReputation(@PathVariable Long id,
+                                                         @RequestBody ReputationAdjustDTO request) {
+        Long operatorId = SecurityUtils.getCurrentUserId();
+        UserReputationVO data = adminUserService.adjustUserReputation(id, request, operatorId);
+        return Result.success(data, "调整用户信誉分成功");
+    }
+
+    @GetMapping("/{id}/reputation")
+    public Result<UserReputationVO> getUserReputation(@PathVariable Long id) {
+        return Result.success(adminUserService.getUserReputation(id), "查询用户信誉分成功");
     }
 }

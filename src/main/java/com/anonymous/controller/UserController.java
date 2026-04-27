@@ -1,12 +1,16 @@
 package com.anonymous.controller;
 
+import com.anonymous.common.Page;
 import com.anonymous.common.Result;
 import com.anonymous.common.util.SecurityUtils;
 import com.anonymous.common.util.JwtUtil;
 import com.anonymous.dto.ChangePasswordDTO;
 import com.anonymous.dto.UserProfileUpdateDTO;
+import com.anonymous.model.ReputationRecord;
 import com.anonymous.model.User;
+import com.anonymous.service.ReputationService;
 import com.anonymous.service.UserService;
+import com.anonymous.vo.ReputationRecordVO;
 import com.anonymous.vo.UserReputationVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -31,6 +35,9 @@ public class UserController {
     @Autowired
     private StringRedisTemplate redisTemplate;
 
+    @Autowired
+    private ReputationService reputationService;
+
     private Map<String, Object> buildUserInfo(User user) {
         Map<String, Object> userInfo = new HashMap<>();
         userInfo.put("id", user.getId());
@@ -38,6 +45,8 @@ public class UserController {
         userInfo.put("username", user.getUsername());
         userInfo.put("role", user.getRole());
         userInfo.put("status", user.getStatus());
+        userInfo.put("reputationScore", user.getReputationScore());
+        userInfo.put("blacklistUntil", user.getBlacklistUntil());
         return userInfo;
     }
 
@@ -95,6 +104,16 @@ public class UserController {
     public Result<UserReputationVO> getReputation() {
         Long userId = SecurityUtils.getCurrentUserId();
         UserReputationVO data = userService.getUserReputation(userId);
+        return Result.success(data, "查询成功");
+    }
+
+    @GetMapping("/reputation-records")
+    public Result<Page<ReputationRecordVO>> getReputationRecords(
+            @RequestParam(defaultValue = "1") int pageNum,
+            @RequestParam(defaultValue = "10") int pageSize
+    ) {
+        Long userId = SecurityUtils.getCurrentUserId();
+        Page<ReputationRecordVO> data = userService.getReputationRecords(userId, pageNum, pageSize);
         return Result.success(data, "查询成功");
     }
 }
