@@ -1,17 +1,25 @@
 package com.anonymous.service.Impl;
 
 import com.anonymous.common.Page;
+import com.anonymous.common.TimeSlot;
 import com.anonymous.common.util.ReservationStatusValidator;
 import com.anonymous.common.util.ReservationTimeValidator;
 import com.anonymous.mapper.ReservationMapper;
+import com.anonymous.mapper.ReservationSlotMapper;
+import com.anonymous.mapper.RoomMapper;
 import com.anonymous.mapper.SeatMapper;
 import com.anonymous.model.Reservation;
+import com.anonymous.model.ReservationSlot;
+import com.anonymous.model.Room;
 import com.anonymous.model.Seat;
 import com.anonymous.model.enums.ReservationStatus;
+import com.anonymous.model.enums.RoomStatus;
 import com.anonymous.model.enums.SeatStatus;
 import com.anonymous.service.ReservationService;
 import com.anonymous.service.RoomSeatBroadcastService;
+import com.anonymous.vo.QuickReservationResultVO;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,12 +36,20 @@ public class ReservationServiceImpl implements ReservationService {
     private SeatMapper seatMapper;
 
     @Autowired
+    private RoomMapper roomMapper;
+
+    @Autowired
     private RoomSeatBroadcastService roomSeatBroadcastService;
+
+    @Autowired
+    private ReservationSlotMapper reservationSlotMapper;
 
     @Override
     @Transactional
     public Long bookSeat(Long userId, Long seatId, LocalDateTime start, LocalDateTime end) {
         ReservationTimeValidator.validateBookTimeRange(start, end);
+        validateFutureBookTime(start);
+        List<TimeSlot> slots = ReservationTimeValidator.resolveContinuousSlots(start, end);
 
         Seat seat = seatMapper.findById(seatId);
         if (seat == null) {
@@ -42,28 +58,18 @@ public class ReservationServiceImpl implements ReservationService {
         if (seat.getStatus() == null || seat.getStatus() == SeatStatus.UNAVAILABLE) {
             throw new RuntimeException("当前座位不可预约");
         }
-
-        int activeCount = reservationMapper.countActiveReservationsByUserId(userId);
-        if (activeCount > 0) {
+        if (reservationMapper.countActiveReservationsByUserId(userId) > 0) {
             throw new RuntimeException("抱歉，您当前已有生效中的预约，不能重复占座！");
         }
-        int overlap = reservationMapper.countOverlap(seatId, start, end);
-        if (overlap > 0) {
+
+        Long reservationId = tryCreatePendingReservation(userId, seat, start, end, slots);
+        if (reservationId == null) {
             throw new RuntimeException("抱歉，该时间段座位已被占用");
         }
 
-        Reservation reservation = new Reservation();
-        reservation.setUserId(userId);
-        reservation.setRoomId(seat.getRoomId());
-        reservation.setSeatId(seatId);
-        reservation.setStartTime(start);
-        reservation.setEndTime(end);
-        reservation.setStatus(ReservationStatus.PENDING.getCode());
-        reservationMapper.insert(reservation);
-
         roomSeatBroadcastService.broadcastRoomSnapshot(seat.getRoomId());
 
-        return reservation.getId();
+        return reservationId;
     }
 
     @Override
@@ -86,6 +92,7 @@ public class ReservationServiceImpl implements ReservationService {
                 return false;
             }
             roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());
+            reservationSlotMapper.deleteByReservationId(reservation.getId());
             return true;
         } catch (Exception e) {
             throw new RuntimeException("取消预约失败" + e.getMessage(), e);
@@ -152,9 +159,10 @@ public class ReservationServiceImpl implements ReservationService {
                 return false;
             }
 
+            reservationSlotMapper.deleteByReservationId(reservation.getId());
             seatMapper.updateStatus(reservation.getSeatId(), SeatStatus.AVAILABLE.getCode());
 //            log.info("【签退成功】用户{}已成功签退", userId);
-            roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());
+            roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());;
             return true;
         } catch (Exception e) {
 //            log.error("【系统异常】签退失败！userId: {}", userId, e);
@@ -226,6 +234,7 @@ public class ReservationServiceImpl implements ReservationService {
                 );
 
                 if (rows > 0) {
+                    reservationSlotMapper.deleteByReservationId(reservation.getId());
                     roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());
 //                    log.info("【座位回收】座位 {} 已重新释放到公共资源池", seatId);
                 } else {
@@ -254,4 +263,90 @@ public class ReservationServiceImpl implements ReservationService {
     public Reservation getCurrent(Long userId) {
         return reservationMapper.findCurrent(userId);
     }
+
+    private Long tryCreatePendingReservation(Long userId, Seat seat, LocalDateTime start, LocalDateTime end, List<TimeSlot> slots) {
+    if (seat.getStatus() == null || seat.getStatus() == SeatStatus.UNAVAILABLE) {
+        return null;
+    }
+
+    int overlap = reservationMapper.countOverlap(seat.getId(), start, end);
+    if (overlap > 0) {
+        return null;
+    }
+
+    Reservation reservation = new Reservation();
+    reservation.setUserId(userId);
+    reservation.setRoomId(seat.getRoomId());
+    reservation.setSeatId(seat.getId());
+    reservation.setStartTime(start);
+    reservation.setEndTime(end);
+    reservation.setStatus(ReservationStatus.PENDING.getCode());
+    reservationMapper.insert(reservation);
+
+    List<ReservationSlot> slotRecords = slots.stream().map(slot -> {
+        ReservationSlot item = new ReservationSlot();
+        item.setReservationId(reservation.getId());
+        item.setUserId(userId);
+        item.setRoomId(seat.getRoomId());
+        item.setSeatId(seat.getId());
+        item.setReserveDate(start.toLocalDate());
+        item.setSlotCode(slot.getCode());
+        item.setSlotStartTime(slot.getStartTime());
+        item.setSlotEndTime(slot.getEndTime());
+        return item;
+    }).toList();
+
+        try {
+            reservationSlotMapper.batchInsert(slotRecords);
+            return reservation.getId();
+        } catch (DuplicateKeyException e) {
+            reservationMapper.deleteById(reservation.getId());
+            return null;
+        }
+    }
+
+    private void validateFutureBookTime(LocalDateTime start) {
+        if (!start.isAfter(LocalDateTime.now())) {
+            throw new RuntimeException("只能预约当前时间之后的时间段");
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public QuickReservationResultVO quickBook(Long userId, LocalDateTime start, LocalDateTime end) {
+    ReservationTimeValidator.validateBookTimeRange(start, end);
+    validateFutureBookTime(start);
+    List<TimeSlot> slots = ReservationTimeValidator.resolveContinuousSlots(start, end);
+
+    if (reservationMapper.countActiveReservationsByUserId(userId) > 0) {
+        throw new RuntimeException("抱歉，您当前已有生效中的预约，不能重复占座！");
+    }
+
+    List<Room> rooms = roomMapper.findAllByStatuses(List.of(RoomStatus.AVAILABLE.getCode()));
+    rooms.sort(Comparator.comparing(Room::getId));
+
+    for (Room room : rooms) {
+        List<Seat> seats = seatMapper.findByRoomId(room.getId()).stream()
+                .filter(seat -> seat.getStatus() != null && seat.getStatus() != SeatStatus.UNAVAILABLE)
+                .sorted(Comparator.comparing(Seat::getSeatCode, Comparator.nullsLast(String::compareToIgnoreCase)))
+                .toList();
+
+        for (Seat seat : seats) {
+            Long reservationId = tryCreatePendingReservation(userId, seat, start, end, slots);
+            if (reservationId != null) {
+                roomSeatBroadcastService.broadcastRoomSnapshot(room.getId());
+                return new QuickReservationResultVO(
+                        reservationId,
+                        room.getId(),
+                        room.getName(),
+                        seat.getId(),
+                        seat.getSeatCode()
+                );
+            }
+        }
+    }
+
+    throw new RuntimeException("当前时间暂无可分配座位，请稍后再试或切换时间段。");
+}
+
 }

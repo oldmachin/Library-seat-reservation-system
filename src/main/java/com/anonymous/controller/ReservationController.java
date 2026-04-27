@@ -2,16 +2,22 @@ package com.anonymous.controller;
 
 import com.anonymous.common.Page;
 import com.anonymous.common.Result;
+import com.anonymous.common.util.ReservationStatusValidator;
+import com.anonymous.common.util.ReservationTimeValidator;
 import com.anonymous.common.util.SecurityUtils;
+import com.anonymous.dto.QuickReservationRequestDTO;
 import com.anonymous.dto.ReservationRequestDTO;
 import com.anonymous.dto.SeatActionRequestDTO;
 import com.anonymous.model.Reservation;
 import com.anonymous.service.ReservationService;
+import com.anonymous.vo.QuickReservationResultVO;
+import com.anonymous.vo.TimeSlotVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/reservations")
@@ -97,5 +103,18 @@ public class ReservationController {
        Long userId = SecurityUtils.getCurrentUserId();
        Page<Reservation> page = reservationService.getHistory(userId, pageNum, pageSize);
        return Result.success(page, "查询成功");
+   }
+
+   @GetMapping("/time-slots")
+    public Result<List<TimeSlotVO>> getTimeSlots() {
+       return Result.success(ReservationTimeValidator.getTimeSlotVOs(), "查询成功");
+   }
+
+   @PostMapping("/quick-book")
+    public Result<QuickReservationResultVO> quickBook(@RequestBody QuickReservationRequestDTO request) {
+       Long userId = SecurityUtils.getCurrentUserId();
+       LocalDateTime startTime = LocalDateTime.parse(request.startTime(), FORMATTER); LocalDateTime endTime = LocalDateTime.parse(request.endTime(), FORMATTER);
+       QuickReservationResultVO result = reservationService.quickBook(userId, startTime, endTime);
+       return Result.success(result, "快捷选座成功");
    }
 }

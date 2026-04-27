@@ -2,6 +2,7 @@ package com.anonymous.service;
 
 import com.anonymous.common.Page;
 import com.anonymous.model.Reservation;
+import com.anonymous.vo.QuickReservationResultVO;
 
 import java.time.LocalDateTime;
 
@@ -24,4 +25,6 @@ public interface ReservationService {
     Page<Reservation> getHistory(Long userId, int pageNum, int pageSize);
 
     Reservation getCurrent(Long userId);
+
+    QuickReservationResultVO quickBook(Long userId, LocalDateTime start, LocalDateTime end);
 }

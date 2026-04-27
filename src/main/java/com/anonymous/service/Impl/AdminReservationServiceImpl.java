@@ -5,10 +5,7 @@ import com.anonymous.common.exception.InvalidOperationStatusException;
 import com.anonymous.common.exception.InvalidParameterException;
 import com.anonymous.common.util.ReservationStatusValidator;
 import com.anonymous.dto.admin.reservation.ReservationQueryDTO;
-import com.anonymous.mapper.ReservationMapper;
-import com.anonymous.mapper.RoomMapper;
-import com.anonymous.mapper.SeatMapper;
-import com.anonymous.mapper.UserMapper;
+import com.anonymous.mapper.*;
 import com.anonymous.model.Reservation;
 import com.anonymous.model.Room;
 import com.anonymous.model.Seat;
@@ -41,6 +38,9 @@ public class AdminReservationServiceImpl implements AdminReservationService {
 
     @Autowired
     private RoomSeatBroadcastService roomSeatBroadcastService;
+
+    @Autowired
+    private ReservationSlotMapper reservationSlotMapper;
 
     @Override
     public Page<ReservationAdminVO> listReservations(ReservationQueryDTO queryDTO) {
@@ -190,8 +190,8 @@ public class AdminReservationServiceImpl implements AdminReservationService {
         );
 
         if (rows > 0) {
-            seatMapper.updateStatus(reservation.getSeatId(), SeatStatus.AVAILABLE.getCode());
             roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());
+            reservationSlotMapper.deleteByReservationId(reservation.getId());
         }
 
         return rows > 0;
@@ -217,6 +217,7 @@ public class AdminReservationServiceImpl implements AdminReservationService {
 
         seatMapper.updateStatus(reservation.getSeatId(), SeatStatus.AVAILABLE.getCode());
         roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());
+        reservationSlotMapper.deleteByReservationId(reservation.getId());
     }
 
 
@@ -238,7 +239,7 @@ public class AdminReservationServiceImpl implements AdminReservationService {
             throw new InvalidOperationStatusException("预约状态已变化，无法标记违约");
         }
 
-        seatMapper.updateStatus(reservation.getSeatId(), SeatStatus.AVAILABLE.getCode());
         roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());
+        reservationSlotMapper.deleteByReservationId(reservation.getId());
     }
 }

@@ -70,6 +70,9 @@ public interface ReservationMapper {
 
     Long countReservationsCurrent();
 
-    @Select("SELECT * FROM reservation WHERE user_id = #{userId} AND seatId = #{seatId} AND status = 0 ORDER BY create_time LIMIT 1")
+    @Select("SELECT * FROM reservation WHERE user_id = #{userId} AND seat_id = #{seatId} AND status = 0 ORDER BY create_time DESC LIMIT 1")
     Reservation findLatestPendingByUserIdAndSeatId(@Param("userId") Long userId, @Param("seatId") Long seatId);
+
+    @Delete("DELETE FROM reservation WHERE id = #{id}")
+    int deleteById(@Param("id") Long id);
 }

@@ -55,6 +55,24 @@ CREATE TABLE IF NOT EXISTS reservation (
     CONSTRAINT fk_reservation_seat FOREIGN KEY (seat_id) REFERENCES seat(id)
 );
 
+CREATE TABLE IF NOT EXISTS reservation_slot (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    reservation_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    room_id BIGINT NOT NULL,
+    seat_id BIGINT NOT NULL,
+    reserve_date DATE NOT NULL,
+    slot_code VARCHAR(10) NOT NULL,
+    slot_start_time TIME NOT NULL,
+    slot_end_time TIME NOT NULL,
+    create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_slot_reservation FOREIGN KEY (reservation_id) REFERENCES reservation(id) ON DELETE CASCADE,
+    CONSTRAINT fk_slot_seat FOREIGN KEY (seat_id) REFERENCES seat(id),
+    UNIQUE KEY uk_seat_date_slot (seat_id, reserve_date, slot_code),
+    KEY idx_slot_reservation (reservation_id),
+    KEY idx_slot_room_date (room_id, reserve_date)
+);
+
 -- 用户
 -- 注意：如果你登录逻辑已经严格使用 BCrypt，这里的密码必须换成 BCrypt 密文
 INSERT INTO user (id, name, username, password, role, status) VALUES

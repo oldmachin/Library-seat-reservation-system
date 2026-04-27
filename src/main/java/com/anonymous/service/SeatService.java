@@ -2,7 +2,9 @@ package com.anonymous.service;
 
 import com.anonymous.model.Seat;
 import com.anonymous.model.enums.SeatStatus;
+import com.anonymous.vo.SeatAvailabilityVO;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface SeatService {
@@ -14,4 +16,6 @@ public interface SeatService {
     List<Seat> getSeatByRoom(Long roomId);
 
     boolean isSeatOperable(Long seatId);
+
+    public List<SeatAvailabilityVO> getSeatAvailabilityByRoom(Long roomId, LocalDateTime start, LocalDateTime end);
 }
