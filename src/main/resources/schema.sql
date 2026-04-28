@@ -1,3 +1,4 @@
+DROP TABLE IF EXISTS announcement;
 DROP TABLE IF EXISTS reputation_record;
 DROP TABLE IF EXISTS reservation_slot;
 DROP TABLE IF EXISTS reservation;
@@ -50,6 +51,7 @@ CREATE TABLE IF NOT EXISTS reservation (
     end_time TIMESTAMP NOT NULL,
     actual_start_time TIMESTAMP NULL,
     actual_end_time TIMESTAMP NULL,
+    temp_leave_start_time TIMESTAMP NULL DEFAULT NULL,
     status TINYINT NOT NULL DEFAULT 0,
     version INT NOT NULL DEFAULT 1,
     create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -82,7 +84,7 @@ CREATE TABLE IF NOT EXISTS reputation_record (
     user_id BIGINT NOT NULL,
     reservation_id BIGINT NULL,
     event_type VARCHAR(32) NOT NULL,
-    operator_id BIGINT NULL AFTER reservation_id,
+    operator_id BIGINT NULL,
     score_delta INT NOT NULL,
     score_before INT NOT NULL DEFAULT 100,
     score_after INT NOT NULL,
@@ -93,6 +95,21 @@ CREATE TABLE IF NOT EXISTS reputation_record (
     CONSTRAINT fk_reputation_reservation FOREIGN KEY (reservation_id) REFERENCES reservation(id) ON DELETE SET NULL,
     KEY idx_reputation_user_time (user_id, create_time),
     KEY idx_reputation_reservation (reservation_id)
+);
+
+CREATE TABLE IF NOT EXISTS announcement (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(100) NOT NULL,
+    content TEXT NOT NULL,
+    status TINYINT NOT NULL DEFAULT 0,
+    is_pinned TINYINT NOT NULL DEFAULT 0,
+    publish_time TIMESTAMP NULL DEFAULT NULL,
+    expire_time TIMESTAMP NULL DEFAULT NULL,
+    creator_id BIGINT NOT NULL,
+    create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_announcement_creator FOREIGN KEY (creator_id) REFERENCES user(id),
+    KEY idx_announcement_status_time (status, is_pinned, publish_time)
 );
 
 -- 用户

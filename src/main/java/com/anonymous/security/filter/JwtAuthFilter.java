@@ -1,6 +1,8 @@
 package com.anonymous.security.filter;
 
 import com.anonymous.common.util.JwtUtil;
+import com.anonymous.mapper.UserMapper;
+import com.anonymous.model.User;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -20,6 +22,9 @@ import java.util.ArrayList;
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final static String AUTH_USER_PREFIX = "auth:user:";
+
+    @Autowired
+    private UserMapper userMapper;
 
     @Autowired
     private JwtUtil jwtUtil;
@@ -50,6 +55,20 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             String cachedToken  = redisTemplate.opsForValue().get(AUTH_USER_PREFIX + userId);
             if (cachedToken == null || !cachedToken.equals(token)) {
                 throw new RuntimeException("会话已失效或已在别处登录");
+            }
+
+            Long currentUserId = Long.valueOf(userId);
+            User user = userMapper.findById(currentUserId);
+            if (user == null) {
+                redisTemplate.delete(AUTH_USER_PREFIX + userId);
+                throw new RuntimeException("用户不存在");
+            }
+            if (user.getStatus() == null || user.getStatus() != 0) {
+                redisTemplate.delete((AUTH_USER_PREFIX + userId));
+                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                response.setContentType("application/json;charset=UTF-8");
+                response.getWriter().write("{\"code\":403, \"message\":\"账号已被禁用，请联系管理员\"}");
+                return;
             }
 
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(

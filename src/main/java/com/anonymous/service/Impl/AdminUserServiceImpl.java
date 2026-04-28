@@ -13,7 +13,9 @@ import com.anonymous.vo.ReputationAdjustDTO;
 import com.anonymous.vo.UserReputationVO;
 import com.anonymous.vo.admin.ReservationAdminVO;
 import com.anonymous.vo.admin.UserAdminVO;
+import com.anonymous.websocket.ReservationWebSocketHandler;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +23,9 @@ import java.util.List;
 
 @Service
 public class AdminUserServiceImpl implements AdminUserService {
+
+    private final static String AUTH_USER_PREFIX = "auth:user:";
+
     @Autowired
     private UserMapper userMapper;
 
@@ -32,6 +37,12 @@ public class AdminUserServiceImpl implements AdminUserService {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private StringRedisTemplate redisTemplate;
+
+    @Autowired
+    private ReservationWebSocketHandler reservationWebSocketHandler;
 
     @Override
     public Page<UserAdminVO> listUsers(UserQueryDTO queryDTO) {
@@ -63,8 +74,14 @@ public class AdminUserServiceImpl implements AdminUserService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public Boolean disableUser(UserUpdateDTO query) {
-        return (userMapper.updateUser(query) > 0);
+        boolean updated = userMapper.updateUser(query) > 0;
+        if (updated && query.id() != null && query.status() != null && query.status() == 1) {
+            redisTemplate.delete(AUTH_USER_PREFIX + query.id());
+            reservationWebSocketHandler.closeUserSessions(query.id(), "账号已被禁用");
+        }
+        return updated;
     }
 
     @Override

@@ -22,6 +22,8 @@ public interface ReservationService {
 
     void processTimeout(Long reservationId);
 
+    void processTempLeaveTimeout(Long reservationId, LocalDateTime expectedTempLeaveStartTime);
+
     Page<Reservation> getHistory(Long userId, int pageNum, int pageSize);
 
     Reservation getCurrent(Long userId);

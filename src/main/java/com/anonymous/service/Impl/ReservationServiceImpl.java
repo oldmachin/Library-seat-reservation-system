@@ -4,28 +4,39 @@ import com.anonymous.common.Page;
 import com.anonymous.common.TimeSlot;
 import com.anonymous.common.util.ReservationStatusValidator;
 import com.anonymous.common.util.ReservationTimeValidator;
-import com.anonymous.mapper.*;
+import com.anonymous.dto.ReservationTimeoutMessage;
+import com.anonymous.mapper.ReservationMapper;
+import com.anonymous.mapper.ReservationSlotMapper;
+import com.anonymous.mapper.RoomMapper;
+import com.anonymous.mapper.SeatMapper;
 import com.anonymous.model.*;
 import com.anonymous.model.enums.ReservationStatus;
+import com.anonymous.model.enums.ReservationTimeoutEventType;
 import com.anonymous.model.enums.RoomStatus;
 import com.anonymous.model.enums.SeatStatus;
+import com.anonymous.mq.ReservationTimeoutProducer;
 import com.anonymous.service.ReputationService;
 import com.anonymous.service.ReservationService;
 import com.anonymous.service.RoomSeatBroadcastService;
-import com.anonymous.service.UserService;
 import com.anonymous.vo.QuickReservationResultVO;
-import com.anonymous.vo.UserReputationVO;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Objects;
 
 @Service
 public class ReservationServiceImpl implements ReservationService {
+
+    private final static Logger log = LoggerFactory.getLogger(ReservationServiceImpl.class);
 
     private final static int NORMAL_BOOK_THRESHOLD = 80;
 
@@ -50,6 +61,32 @@ public class ReservationServiceImpl implements ReservationService {
 
     @Autowired
     private ReputationService reputationService;
+
+    @Autowired
+    private ReservationTimeoutProducer reservationTimeoutProducer;
+
+    private void publishCheckInTimeoutMessage(Reservation reservation) {
+        LocalDateTime deadline = reservation.getStartTime().plusMinutes(30);
+        long delayMillis = Duration.between(LocalDateTime.now(), deadline).toMillis();
+
+        ReservationTimeoutMessage payload = new ReservationTimeoutMessage(
+                reservation.getId(),
+                ReservationTimeoutEventType.CHECK_IN_TIMEOUT.name(),
+                reservation.getStartTime().toString()
+        );
+        reservationTimeoutProducer.sendCheckInTimeoutMessage(payload, delayMillis);
+    }
+
+    private void publishTempLeaveTimeoutMessage(Reservation reservation, LocalDateTime tempLeaveStartTime) {
+        ReservationTimeoutMessage payload = new ReservationTimeoutMessage(
+                reservation.getId(),
+                ReservationTimeoutEventType.TEMP_LEAVE_TIMEOUT.name(),
+                tempLeaveStartTime.toString()
+        );
+
+        reservationTimeoutProducer.sendTempLeaveTimeoutMessage(payload);
+    }
+
 
     private User validateBookingPermission(Long userId, boolean quickBooking) {
         User user = reputationService.refreshBlacklistIfNeeded(userId);
@@ -163,6 +200,7 @@ public class ReservationServiceImpl implements ReservationService {
                 return false;
             }
 
+            reservationMapper.updateActualStartTime(reservation.getId(), LocalDateTime.now());
             seatMapper.updateStatus(seatId, SeatStatus.OCCUPIED.getCode());
 //            log.info("【签到成功】用户 {} 已成功入座 {}", userId, seatId);
             roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());
@@ -195,6 +233,8 @@ public class ReservationServiceImpl implements ReservationService {
             }
 
             reservationSlotMapper.deleteByReservationId(reservation.getId());
+            reservationMapper.updateTempLeaveStartTime(reservation.getId(), null);
+            reservationMapper.updateActualEndTime(reservation.getId(), LocalDateTime.now());
             seatMapper.updateStatus(reservation.getSeatId(), SeatStatus.AVAILABLE.getCode());
 //            log.info("【签退成功】用户{}已成功签退", userId);
             roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());;
@@ -217,8 +257,11 @@ public class ReservationServiceImpl implements ReservationService {
 
             ReservationStatusValidator.validateLeaveTemp(reservation.getStatus());
 
+            LocalDateTime tempLeaveStartTime = LocalDateTime.now().withNano(0);
+            reservationMapper.updateTempLeaveStartTime(reservation.getId(), tempLeaveStartTime);
             seatMapper.updateStatus(reservation.getSeatId(), SeatStatus.AWAY.getCode());
             roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());
+            publishTempLeaveTimeoutMessage(reservation, tempLeaveStartTime);
             return true;
         } catch (Exception e) {
             throw new RuntimeException("暂离事务执行失败", e);
@@ -242,6 +285,7 @@ public class ReservationServiceImpl implements ReservationService {
             }
             ReservationStatusValidator.validateReturnTemp(seat.getStatus().getCode());
 
+            reservationMapper.updateTempLeaveStartTime(reservation.getId(), null);
             seatMapper.updateStatus(seatId, SeatStatus.OCCUPIED.getCode());
             roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());
             return true;
@@ -260,7 +304,7 @@ public class ReservationServiceImpl implements ReservationService {
                 return;
             }
 
-            LocalDateTime deadline = reservation.getStartTime().plusMinutes(15);
+            LocalDateTime deadline = reservation.getStartTime().plusMinutes(30);
             if (LocalDateTime.now().isAfter(deadline)) {
 //                log.warn("【触发违约】订单 {} 已超过最晚签到时间 {}，执行强制释放！", reservationId, deadline);
                 int rows = reservationMapper.updateStatus(
@@ -283,6 +327,56 @@ public class ReservationServiceImpl implements ReservationService {
             throw new RuntimeException("处理超时违约事务执行失败", e); // 必须抛出以回滚
         }
     }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void processTempLeaveTimeout(Long reservationId, LocalDateTime expectedTempLeaveStartTime) {
+        try {
+            Reservation reservation = reservationMapper.findById(reservationId);
+            if (reservation == null) {
+                return;
+            }
+
+            if (!Objects.equals(ReservationStatus.IN_USE.getCode(), reservation.getStatus())) {
+                return;
+            }
+
+            if (reservation.getTempLeaveStartTime() == null) {
+                return;
+            }
+
+            if (!reservation.getTempLeaveStartTime().equals(expectedTempLeaveStartTime)) {
+                return;
+            }
+
+            LocalDateTime deadline = expectedTempLeaveStartTime.plusMinutes(30);
+            if (!LocalDateTime.now().isAfter(deadline)) {
+                return;
+            }
+
+            Seat seat = seatMapper.findById(reservation.getSeatId());
+            if (seat == null || seat.getStatus() == null || seat.getStatus() != SeatStatus.AWAY) {
+                return;
+            }
+
+            int rows = reservationMapper.updateStatusAndClearTempLeaveIfMatch(
+                    reservation.getId(),
+                    ReservationStatus.IN_USE.getCode(),
+                    ReservationStatus.VIOLATED.getCode(),
+                    expectedTempLeaveStartTime
+            );
+
+            if (rows > 0) {
+                seatMapper.updateStatus(reservation.getSeatId(), SeatStatus.AVAILABLE.getCode());
+                reservationSlotMapper.deleteByReservationId(reservation.getId());
+                roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());
+                reputationService.onReservationViolated(reservation.getUserId(), reservation.getId());
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("处理暂离超时事务执行失败", e);
+        }
+    }
+
 
     @Override
     public Page<Reservation> getHistory(Long userId, int pageNum, int pageSize) {
@@ -335,6 +429,7 @@ public class ReservationServiceImpl implements ReservationService {
 
         try {
             reservationSlotMapper.batchInsert(slotRecords);
+            publishCheckInTimeoutMessage(reservation);
             return reservation.getId();
         } catch (DuplicateKeyException e) {
             reservationMapper.deleteById(reservation.getId());

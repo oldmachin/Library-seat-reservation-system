@@ -15,7 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class ReservationWebSocketHandler extends TextWebSocketHandler {
 
-    private final Map<Long, WebSocketSession> userSessionMap = new ConcurrentHashMap<>();
+    private final Map<Long, Set<WebSocketSession>> userSessionMap = new ConcurrentHashMap<>();
 
     private final Map<Long, Set<WebSocketSession>> roomSubscribers = new ConcurrentHashMap<>();
 
@@ -28,6 +28,43 @@ public class ReservationWebSocketHandler extends TextWebSocketHandler {
         }
         return null;
     }
+
+    private void registerUserSession(Long userId, WebSocketSession session) {
+        if (userId == null || session == null) {
+            return;
+        }
+        Set<WebSocketSession> sessions = userSessionMap.computeIfAbsent(userId, key -> ConcurrentHashMap.newKeySet());
+        sessions.add(session);
+    }
+
+    private void cleanupSession(WebSocketSession session) {
+        if (session == null) {
+            return;
+        }
+
+        Long userId = getUserId(session);
+        if (userId != null) {
+            Set<WebSocketSession> sessions = userSessionMap.get(userId);
+            if (sessions != null) {
+                sessions.remove(session);
+                if (sessions.isEmpty()) {
+                    userSessionMap.remove(userId);
+                }
+            }
+        }
+
+        Long roomId = sessionRoomMap.remove(session.getId());
+        if (roomId != null) {
+            Set<WebSocketSession> subscribers = roomSubscribers.get(roomId);
+            if (subscribers != null) {
+                subscribers.remove(session);
+                if (subscribers.isEmpty()) {
+                    roomSubscribers.remove(roomId);
+                }
+            }
+        }
+    }
+
 
     /**
      * 受到消息时处理消息
@@ -82,7 +119,9 @@ public class ReservationWebSocketHandler extends TextWebSocketHandler {
         Long userId = getUserId(session);
         if (userId == null) {
             session.close();
+            return;
         }
+        registerUserSession(userId, session);
     }
 
     /**
@@ -93,44 +132,39 @@ public class ReservationWebSocketHandler extends TextWebSocketHandler {
      */
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
-        Long userId = getUserId(session);
-        if (userId != null) {
-            userSessionMap.remove(userId, session);
-        }
-
-        Long roomId = sessionRoomMap.remove(session.getId());
-        if (roomId != null) {
-            Set<WebSocketSession> subscribers = roomSubscribers.get(roomId);
-            if (subscribers != null) {
-               subscribers.remove(session);
-                if (subscribers.isEmpty()) {
-                    roomSubscribers.remove(roomId);
-                }
-            }
-        }
+        cleanupSession(session);
     }
 
     public boolean sendToUser(Long userId, String text) {
         if (userId == null || text == null || text.isBlank()) {
             return false;
         }
-        WebSocketSession session = userSessionMap.get(userId);
+        Set<WebSocketSession> sessions = userSessionMap.get(userId);
 
-        if (session == null) {
+        if (sessions == null || sessions.isEmpty()) {
             return false;
         }
 
-        if (!session.isOpen()) {
-            userSessionMap.remove(userId, session);
-            return false;
+        Set<WebSocketSession> cancelSessions = new HashSet<>();
+        boolean sent = false;
+
+        for (WebSocketSession session : sessions) {
+            if (!session.isOpen()) {
+                cancelSessions.add(session);
+            } else {
+                try {
+                    session.sendMessage(new TextMessage(text));
+                    sent = true;
+                } catch (Exception e) {
+                    cancelSessions.add(session);
+                }
+            }
         }
-        try {
-            session.sendMessage(new TextMessage(text));
-            return true;
-        } catch (Exception e) {
-            userSessionMap.remove(userId, session);
-            return false;
+
+        for (WebSocketSession session : cancelSessions) {
+            cleanupSession(session);
         }
+        return sent;
     }
 
     public boolean broadcastToRoom(Long roomId, String text) {
@@ -163,5 +197,33 @@ public class ReservationWebSocketHandler extends TextWebSocketHandler {
             roomSubscribers.remove(roomId);
         }
         return isSent;
+    }
+
+    public boolean closeUserSessions(Long userId, String reason) {
+        if (userId == null) {
+            return false;
+        }
+
+        Set<WebSocketSession> sessions = userSessionMap.get(userId);
+        if (sessions == null || sessions.isEmpty()) {
+            return false;
+        }
+
+        Set<WebSocketSession> snapshot = new HashSet<>(sessions);
+        boolean closed = false;
+
+        for (WebSocketSession session : snapshot) {
+            try {
+                if (session.isOpen()) {
+                    session.close(new CloseStatus(4003, reason == null || reason.isBlank() ? "账号已被禁用" : reason));
+                }
+            } catch (Exception ignored) {
+            } finally {
+                cleanupSession(session);
+                closed = true;
+            }
+        }
+
+        return closed;
     }
 }

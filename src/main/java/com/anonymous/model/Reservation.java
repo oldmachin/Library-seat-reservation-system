@@ -19,6 +19,8 @@ public class Reservation {
 
     private LocalDateTime actualEndTime;
 
+    private LocalDateTime tempLeaveStartTime;
+
     private Integer status;
 
     private Integer version;
@@ -27,7 +29,7 @@ public class Reservation {
 
     private LocalDateTime updateTime;
 
-    public Reservation(Long id, Long userId, Long roomId, Long seatId, LocalDateTime startTime, LocalDateTime endTime, LocalDateTime actualStartTime, LocalDateTime actualEndTime, Integer status, Integer version, LocalDateTime createTime, LocalDateTime updateTime) {
+    public Reservation(Long id, Long userId, Long roomId, Long seatId, LocalDateTime startTime, LocalDateTime endTime, LocalDateTime actualStartTime, LocalDateTime actualEndTime, LocalDateTime tempLeaveStartTime, Integer status, Integer version, LocalDateTime createTime, LocalDateTime updateTime) {
         this.id = id;
         this.userId = userId;
         this.roomId = roomId;
@@ -36,6 +38,7 @@ public class Reservation {
         this.endTime = endTime;
         this.actualStartTime = actualStartTime;
         this.actualEndTime = actualEndTime;
+        this.tempLeaveStartTime = tempLeaveStartTime;
         this.status = status;
         this.version = version;
         this.createTime = createTime;
@@ -135,6 +138,14 @@ public class Reservation {
 
     public LocalDateTime getUpdateTime() {
         return updateTime;
+    }
+
+    public LocalDateTime getTempLeaveStartTime() {
+        return tempLeaveStartTime;
+    }
+
+    public void setTempLeaveStartTime(LocalDateTime tempLeaveStartTime) {
+        this.tempLeaveStartTime = tempLeaveStartTime;
     }
 
     public void setUpdateTime(LocalDateTime updateTime) {

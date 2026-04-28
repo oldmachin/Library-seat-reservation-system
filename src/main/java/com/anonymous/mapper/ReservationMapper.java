@@ -61,8 +61,8 @@ public interface ReservationMapper {
     int updateWithVersion(Reservation reservation);
 
     List<ReservationAdminVO> findReservationsByCondition(@Param("query")ReservationQueryDTO queryDTO,
-                                                        @Param("offset") Integer offset,
-                                                        @Param("size") Integer size);
+                                                         @Param("offset") Integer offset,
+                                                         @Param("size") Integer size);
 
     Long countReservationsByCondition(@Param("query") ReservationQueryDTO queryDTO);
 
@@ -75,4 +75,32 @@ public interface ReservationMapper {
 
     @Delete("DELETE FROM reservation WHERE id = #{id}")
     int deleteById(@Param("id") Long id);
+
+    @Update("UPDATE reservation SET temp_leave_start_time = #{tempLeaveStartTime}, update_time = NOW() WHERE id = #{id}")
+    int updateTempLeaveStartTime(@Param("id") Long id, @Param("tempLeaveStartTime") LocalDateTime tempLeaveStartTime);
+
+    @Update("UPDATE reservation SET actual_start_time = #{actualStartTime}, update_time = NOW() WHERE id = #{id}")
+    int updateActualStartTime(@Param("id") Long id, @Param("actualStartTime") LocalDateTime actualStartTime);
+
+    @Update("UPDATE reservation SET actual_end_time = #{actualEndTime}, update_time = NOW() WHERE id = #{id}")
+    int updateActualEndTime(@Param("id") Long id, @Param("actualEndTime") LocalDateTime actualEndTime);
+
+    @Update("UPDATE reservation " +
+            "SET status = #{toStatus}, temp_leave_start_time = NULL, update_time = NOW() " +
+            "WHERE id = #{id} AND status = #{fromStatus} AND temp_leave_start_time = #{expectedTempLeaveStartTime}")
+    int updateStatusAndClearTempLeaveIfMatch(@Param("id") Long id,
+                                             @Param("fromStatus") Integer fromStatus,
+                                             @Param("toStatus") Integer toStatus,
+                                             @Param("expectedTempLeaveStartTime") LocalDateTime expectedTempLeaveStartTime);
+
+    @Select("SELECT * FROM reservation " +
+            "WHERE status = 0 " +
+            "AND start_time <= #{latestAllowedStartTime}")
+    List<Reservation> findCheckInTimeoutCandidates(@Param("latestAllowedStartTime") LocalDateTime latestAllowedStartTime);
+
+    @Select("SELECT * FROM reservation " +
+            "WHERE status = 1 " +
+            "AND temp_leave_start_time IS NOT NULL " +
+            "AND temp_leave_start_time <= #{latestAllowedTempLeaveStartTime}")
+    List<Reservation> findTempLeaveTimeoutCandidates(@Param("latestAllowedTempLeaveStartTime") LocalDateTime latestAllowedTempLeaveStartTime);
 }
