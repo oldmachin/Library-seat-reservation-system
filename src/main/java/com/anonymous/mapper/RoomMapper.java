@@ -9,8 +9,8 @@ import java.util.List;
 @Mapper
 public interface RoomMapper {
 
-    @Insert("INSERT INTO room (name, capacity, status, create_time, update_time) " +
-            "VALUES (#{name}, #{capacity}, #{status}, NOW(), NOW())")
+    @Insert("INSERT INTO room (name, capacity, status, layout_template, create_time, update_time) " +
+            "VALUES (#{name}, #{capacity}, #{status}, #{layoutTemplate}, NOW(), NOW())")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(Room room);
 
@@ -65,6 +65,7 @@ public interface RoomMapper {
             "  <if test='name != null and name != \"\"'>name = #{name},</if>" +
             "  <if test='capacity != null'>capacity = #{capacity},</if>" +
             "  <if test='status != null'>status = #{status},</if>" +
+            "  <if test='layoutTemplate != null and layoutTemplate != \"\"'>layout_template = #{layoutTemplate},</if>" +
             "  update_time = NOW()" +
             "</set>" +
             "WHERE id = #{id}" +

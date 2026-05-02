@@ -2,6 +2,7 @@ package com.anonymous.controller.admin;
 
 import com.anonymous.common.Page;
 import com.anonymous.common.Result;
+import com.anonymous.dto.admin.room.RoomCreateDTO;
 import com.anonymous.dto.admin.room.RoomQueryDTO;
 import com.anonymous.model.Room;
 import com.anonymous.service.AdminRoomService;
@@ -26,9 +27,9 @@ public class AdminRoomController {
     }
 
     @PostMapping
-    public Result<Boolean> addRoom(@RequestBody Room room) {
+    public Result<Boolean> addRoom(@RequestBody RoomCreateDTO request) {
         try {
-            Boolean result = adminRoomService.addRoom(room);
+            Boolean result = adminRoomService.addRoom(request);
             return Result.success(result, "新增房间成功");
         } catch(Exception e) {
             return Result.fail(false, "房间新增失败");

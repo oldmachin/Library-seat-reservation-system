@@ -5,6 +5,7 @@ public record RoomAdminVO(
         String name,
         Integer capacity,
         Integer status,
-        String statusText
+        String statusText,
+        String layoutTemplate
 ) {
 }

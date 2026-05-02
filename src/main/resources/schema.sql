@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS room (
     name VARCHAR(50) NOT NULL,
     capacity INT NOT NULL,
     status TINYINT NOT NULL DEFAULT 0,
+    layout_template VARCHAR(50) NOT NULL DEFAULT 'GRID',
     create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     update_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -123,10 +124,10 @@ INSERT INTO user (id, name, username, password, role, status) VALUES
 -- 房间
 -- RoomStatus: 0 AVAILABLE, 1 MAINTAINING, 2 DISCARD
 INSERT INTO room (id, name, capacity, status) VALUES
-(1, '一楼自习室', 50, 0),
-(2, '二楼阅览室', 80, 0),
-(3, '三楼研讨区', 20, 1),
-(4, '四楼封闭区', 30, 2);
+(1, '一楼自习室', 50, 0, 'GRID'),
+(2, '二楼阅览室', 80, 0, 'GRID'),
+(3, '三楼研讨区', 20, 1, 'GRID'),
+(4, '四楼封闭区', 30, 2, 'GRID');
 
 -- 座位
 -- SeatStatus: 0 AVAILABLE, 1 RESERVED, 2 OCCUPIED, 3 AWAY, 4 UNAVAILABLE

@@ -2,21 +2,30 @@ package com.anonymous.service.Impl;
 
 import com.anonymous.common.Page;
 import com.anonymous.common.exception.InvalidParameterException;
+import com.anonymous.dto.admin.room.RoomCreateDTO;
 import com.anonymous.dto.admin.room.RoomQueryDTO;
 import com.anonymous.mapper.RoomMapper;
+import com.anonymous.mapper.SeatMapper;
 import com.anonymous.model.Room;
+import com.anonymous.model.Seat;
 import com.anonymous.model.enums.RoomStatus;
 import com.anonymous.service.AdminRoomService;
+import com.anonymous.service.RoomTemplateFactory;
 import com.anonymous.vo.admin.RoomAdminVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 @Service
 public class AdminRoomServiceImpl implements AdminRoomService {
+
     @Autowired
     private RoomMapper roomMapper;
+
+    @Autowired
+    private SeatMapper seatMapper;
 
     @Override
     public Page<RoomAdminVO> findRoomCondition(RoomQueryDTO roomQueryDTO) {
@@ -59,14 +68,31 @@ public class AdminRoomServiceImpl implements AdminRoomService {
     }
 
     @Override
-    public Boolean addRoom(Room room) {
-        if (room == null) {
-            throw new InvalidParameterException("room");
+    @Transactional(rollbackFor = Exception.class)
+    public Boolean addRoom(RoomCreateDTO request) {
+        if (request == null || request.name() == null || request.name().trim().isEmpty()) {
+        throw new InvalidParameterException("room.name");
         }
-        if (room.getStatus() == null) {
-            room.setStatus(RoomStatus.AVAILABLE.getCode());
-        }
-        return roomMapper.insert(room) > 0;
+
+        String template = request.layoutTemplate() == null || request.layoutTemplate().isBlank()
+                ? "CLASSROOM"
+                : request.layoutTemplate().trim().toUpperCase();
+
+        List<Seat> previewSeats = RoomTemplateFactory.createSeats(template, 0L);
+
+        Room room = new Room();
+        room.setName(request.name().trim());
+        room.setCapacity(previewSeats.size());
+        room.setStatus(request.status() == null ? RoomStatus.AVAILABLE.getCode() : request.status());room.setLayoutTemplate(template);
+        room.setLayoutTemplate(template);
+        room.setLayoutTemplate(template);
+
+        roomMapper.insert(room);
+
+        List<Seat> seats = RoomTemplateFactory.createSeats(template, room.getId());
+        seatMapper.batchInsert(seats);
+
+        return true;
     }
 
     @Override
@@ -105,7 +131,8 @@ public class AdminRoomServiceImpl implements AdminRoomService {
                 room.getName(),
                 room.getCapacity(),
                 room.getStatus(),
-                statusText
+                statusText,
+                room.getLayoutTemplate()
         );
     }
 }

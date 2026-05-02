@@ -27,4 +27,16 @@ public interface SeatMapper {
 
     @Select("SELECT * FROM seat WHERE room_id = #{roomId}")
     List<Seat> findByRoomId(Long roomId);
+
+    @Insert({
+             "<script>",
+    "INSERT INTO seat",
+    "(room_id, seat_code, type, status, x_axis, y_axis, create_time, update_time)",
+    "VALUES",
+    "<foreach collection='items' item='item' separator=','>",
+    "(#{item.roomId}, #{item.seatCode}, #{item.type}, #{item.status}, #{item.xAxis}, #{item.yAxis}, NOW(), NOW())",
+    "</foreach>",
+    "</script>"
+    })
+    int batchInsert(@Param("items") List<Seat> items);
 }

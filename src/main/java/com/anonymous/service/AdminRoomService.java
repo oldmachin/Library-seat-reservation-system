@@ -1,6 +1,7 @@
 package com.anonymous.service;
 
 import com.anonymous.common.Page;
+import com.anonymous.dto.admin.room.RoomCreateDTO;
 import com.anonymous.dto.admin.room.RoomQueryDTO;
 import com.anonymous.model.Room;
 import com.anonymous.vo.admin.RoomAdminVO;
@@ -11,7 +12,7 @@ public interface AdminRoomService {
 
     RoomAdminVO findRoomById(Long id);
 
-    Boolean addRoom(Room room);
+    Boolean addRoom(RoomCreateDTO request);
 
     Boolean updateRoom(Room room);
 }

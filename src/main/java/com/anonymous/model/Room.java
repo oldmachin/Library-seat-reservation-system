@@ -12,6 +12,8 @@ public class Room {
 
     private Integer status; // 0 - 空闲中，1 - 维护中，2 - 已停用
 
+    private String layoutTemplate;
+
     private LocalDateTime createTime;
 
     private LocalDateTime updateTime;
@@ -70,6 +72,14 @@ public class Room {
 
     public LocalDateTime getUpdateTime() {
         return updateTime;
+    }
+
+    public String getLayoutTemplate() {
+        return layoutTemplate;
+    }
+
+    public void setLayoutTemplate(String layoutTemplate) {
+        this.layoutTemplate = layoutTemplate;
     }
 
     public void setUpdateTime(LocalDateTime updateTime) {
