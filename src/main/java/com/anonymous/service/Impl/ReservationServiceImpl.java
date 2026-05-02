@@ -2,13 +2,11 @@ package com.anonymous.service.Impl;
 
 import com.anonymous.common.Page;
 import com.anonymous.common.TimeSlot;
+import com.anonymous.common.exception.InvalidParameterException;
 import com.anonymous.common.util.ReservationStatusValidator;
 import com.anonymous.common.util.ReservationTimeValidator;
 import com.anonymous.dto.ReservationTimeoutMessage;
-import com.anonymous.mapper.ReservationMapper;
-import com.anonymous.mapper.ReservationSlotMapper;
-import com.anonymous.mapper.RoomMapper;
-import com.anonymous.mapper.SeatMapper;
+import com.anonymous.mapper.*;
 import com.anonymous.model.*;
 import com.anonymous.model.enums.ReservationStatus;
 import com.anonymous.model.enums.ReservationTimeoutEventType;
@@ -19,6 +17,7 @@ import com.anonymous.service.ReputationService;
 import com.anonymous.service.ReservationService;
 import com.anonymous.service.RoomSeatBroadcastService;
 import com.anonymous.vo.QuickReservationResultVO;
+import com.anonymous.vo.ReservationUserDetailVO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -64,6 +63,22 @@ public class ReservationServiceImpl implements ReservationService {
 
     @Autowired
     private ReservationTimeoutProducer reservationTimeoutProducer;
+
+    @Autowired
+    private ReservationAdminActionMapper reservationAdminActionMapper;
+
+    private String convertStatusText(Integer status) {
+        return switch (status) {
+            case 0 -> ReservationStatus.PENDING.getDescription();
+            case 1 -> ReservationStatus.IN_USE.getDescription();
+            case 2 -> ReservationStatus.COMPLETED.getDescription();
+            case 3 -> ReservationStatus.USER_CANCELLED.getDescription();
+            case 4 -> ReservationStatus.EXPIRED.getDescription();
+            case 5 -> ReservationStatus.ADMIN_CANCELLED.getDescription();
+            case 6 -> ReservationStatus.VIOLATED.getDescription();
+            default -> "未知";
+        };
+    }
 
     private void publishCheckInTimeoutMessage(Reservation reservation) {
         LocalDateTime deadline = reservation.getStartTime().plusMinutes(30);
@@ -393,6 +408,41 @@ public class ReservationServiceImpl implements ReservationService {
     @Override
     public Reservation getCurrent(Long userId) {
         return reservationMapper.findCurrent(userId);
+    }
+
+    @Override
+    public ReservationUserDetailVO getDetail(Long userId, Long reservationId) {
+        Reservation reservation = reservationMapper.findById(reservationId);
+        if (reservation == null) {
+            throw new InvalidParameterException("Reservation id");
+        }
+
+        if (!Objects.equals(reservation.getUserId(), userId)) {
+            throw new RuntimeException("无权查看该预约详情");
+        }
+
+        Room room = roomMapper.findById(reservation.getRoomId());
+        Seat seat = seatMapper.findById(reservation.getSeatId());
+        var adminActions = reservationAdminActionMapper.findByReservationId(reservation.getId());
+
+        return new ReservationUserDetailVO(
+                reservation.getId(),
+                room.getId(),
+                room.getName(),
+                reservation.getSeatId(),
+                seat.getSeatCode(),
+                String.valueOf(seat.getType()),
+                seat.getStatus().getCode(),
+                reservation.getStartTime(),
+                reservation.getEndTime(),
+                reservation.getActualStartTime(),
+                reservation.getActualEndTime(),
+                reservation.getTempLeaveStartTime(),
+                reservation.getStatus(),
+                convertStatusText(reservation.getStatus()),
+                reservation.getVersion(),
+                adminActions
+        );
     }
 
     private Long tryCreatePendingReservation(Long userId, Seat seat, LocalDateTime start, LocalDateTime end, List<TimeSlot> slots) {

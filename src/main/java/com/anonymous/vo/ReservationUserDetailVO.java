@@ -1,19 +1,12 @@
-package com.anonymous.vo.admin;
-
-import com.anonymous.vo.ReservationAdminActionVO;
+package com.anonymous.vo;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
-public record ReservationDetailVO(
+public record ReservationUserDetailVO(
         Long id,
-        Long userId,
-        String userName,
-        String username,
-        Integer userStatus,
-        String userRole,
         Long roomId,
         String roomName,
-        Integer roomStatus,
         Long seatId,
         String seatCode,
         String seatType,
@@ -22,9 +15,10 @@ public record ReservationDetailVO(
         LocalDateTime endTime,
         LocalDateTime actualStartTime,
         LocalDateTime actualEndTime,
+        LocalDateTime tempLeaveStartTime,
         Integer status,
-        String statusText,
+        String textStatus,
         Integer version,
-        java.util.List<ReservationAdminActionVO> adminActions
+        List<ReservationAdminActionVO> adminActions
 ) {
 }

@@ -11,6 +11,7 @@ import com.anonymous.dto.SeatActionRequestDTO;
 import com.anonymous.model.Reservation;
 import com.anonymous.service.ReservationService;
 import com.anonymous.vo.QuickReservationResultVO;
+import com.anonymous.vo.ReservationUserDetailVO;
 import com.anonymous.vo.TimeSlotVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -96,6 +97,13 @@ public class ReservationController {
        }
        return Result.fail(null, "当前没有预约");
    }
+
+    @GetMapping("/{id}")
+    public Result<ReservationUserDetailVO> getReservationDetail(@PathVariable Long id) {
+        Long userId = SecurityUtils.getCurrentUserId();
+        ReservationUserDetailVO detail = reservationService.getDetail(userId, id);
+        return Result.success(detail, "查询成功");
+    }
 
    @GetMapping("/history")
    public Result<Page<Reservation>> getHistoryReservation(@RequestParam(defaultValue = "1") int pageNum,
