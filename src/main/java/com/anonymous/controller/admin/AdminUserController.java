@@ -3,6 +3,8 @@ package com.anonymous.controller.admin;
 import com.anonymous.common.Page;
 import com.anonymous.common.Result;
 import com.anonymous.common.util.SecurityUtils;
+import com.anonymous.dto.UserCreateDTO;
+import com.anonymous.dto.UserPasswordResetDTO;
 import com.anonymous.dto.admin.reservation.ReservationQueryDTO;
 import com.anonymous.dto.admin.user.UserQueryDTO;
 import com.anonymous.dto.admin.user.UserUpdateDTO;
@@ -70,4 +72,22 @@ public class AdminUserController {
     public Result<UserReputationVO> getUserReputation(@PathVariable Long id) {
         return Result.success(adminUserService.getUserReputation(id), "查询用户信誉分成功");
     }
+
+    @PostMapping
+    public Result<Boolean> createUser(@RequestBody UserCreateDTO request) {
+        return Result.success(adminUserService.createUser(request), "新增用户成功");
+    }
+
+    @PutMapping("/{id}/enable")
+    public Result<Boolean> enableUser(@PathVariable Long id) {
+        return Result.success(adminUserService.enableUser(id), "恢复用户成功");
+    }
+
+    @PutMapping("/{id}/password")
+    public Result<Boolean> resetPassword(@PathVariable Long id,
+                                         @RequestBody UserPasswordResetDTO request) {
+        String password = request == null ? null : request.password();
+        return Result.success(adminUserService.resetPassword(id, password), "重置密码成功");
+    }
+
 }

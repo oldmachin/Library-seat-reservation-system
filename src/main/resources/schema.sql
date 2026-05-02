@@ -5,6 +5,7 @@ DROP TABLE IF EXISTS reservation;
 DROP TABLE IF EXISTS seat;
 DROP TABLE IF EXISTS room;
 DROP TABLE IF EXISTS user;
+DROP TABLE IF EXISTS reservation_admin_action;
 
 CREATE TABLE IF NOT EXISTS user (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -113,6 +114,20 @@ CREATE TABLE IF NOT EXISTS announcement (
     KEY idx_announcement_status_time (status, is_pinned, publish_time)
 );
 
+CREATE TABLE IF NOT EXISTS reservation_admin_action (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    reservation_id BIGINT NOT NULL,
+    action_type VARCHAR(50) NOT NULL,
+    operator_id BIGINT NULL,
+    reason VARCHAR(50) NOT NULL DEFAULT '',
+    penalty_level INT NULL,
+    ban_days INT NULL,
+    create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_admin_action_reservation FOREIGN KEY (reservation_id) REFERENCES reservation(id) ON DELETE CASCADE,
+    CONSTRAINT fk_admin_action_operator FOREIGN KEY (operator_id) REFERENCES user(id) ON DELETE SET NULL,
+    KEY idx_admin_action_reservation_time (reservation_id, create_time)
+);
+
 -- 用户
 -- 注意：如果你登录逻辑已经严格使用 BCrypt，这里的密码必须换成 BCrypt 密文
 INSERT INTO user (id, name, username, password, role, status) VALUES
@@ -123,7 +138,7 @@ INSERT INTO user (id, name, username, password, role, status) VALUES
 
 -- 房间
 -- RoomStatus: 0 AVAILABLE, 1 MAINTAINING, 2 DISCARD
-INSERT INTO room (id, name, capacity, status) VALUES
+INSERT INTO room (id, name, capacity, status, layout_template) VALUES
 (1, '一楼自习室', 50, 0, 'GRID'),
 (2, '二楼阅览室', 80, 0, 'GRID'),
 (3, '三楼研讨区', 20, 1, 'GRID'),

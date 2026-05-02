@@ -27,10 +27,10 @@ spring:
           max-idle: 8
           min-idle: 0
   rabbitmq:
-    host: 127.0.0.1
+    host: 172.25.114.191
     port: 5672
-    username: guest
-    password: guest
+    username: Anonymous
+    password: Anonymous
     listener:
       simple:
         default-requeue-rejected: false

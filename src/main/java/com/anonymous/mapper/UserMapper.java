@@ -40,7 +40,11 @@ public interface UserMapper {
     User findByIdForUpdate(@Param("id") Long id);
 
     @Update("UPDATE user SET reputation_score = #{score}, blacklist_until = #{blacklistUntil}, update_time = NOW() WHERE id = #{id}")
-int updateReputationState(@Param("id") Long id,
-                          @Param("score") Integer score,
-                          @Param("blacklistUntil") java.time.LocalDateTime blacklistUntil);
+    int updateReputationState(@Param("id") Long id,
+                              @Param("score") Integer score,
+                              @Param("blacklistUntil") java.time.LocalDateTime blacklistUntil);
+
+    @Insert("Insert INTO user (name, username, password, role, status, reputation_score, create_time, update_time) " +
+            "VALUES (#{name}, #{username}, #{password}, #{role}, 0, 100, NOW(), NOW()")
+    int insertAdminUser(@Param("name") String name, @Param("username") String username, @Param("password") String password, @Param("role") String role);
 }

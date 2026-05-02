@@ -18,4 +18,6 @@ public interface SeatService {
     boolean isSeatOperable(Long seatId);
 
     public List<SeatAvailabilityVO> getSeatAvailabilityByRoom(Long roomId, LocalDateTime start, LocalDateTime end);
+
+    Boolean updateSeatStatusByAdmin(Long seatId, Integer status, String maintenanceNote);
 }

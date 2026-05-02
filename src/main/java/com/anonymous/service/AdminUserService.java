@@ -1,6 +1,7 @@
 package com.anonymous.service;
 
 import com.anonymous.common.Page;
+import com.anonymous.dto.UserCreateDTO;
 import com.anonymous.dto.admin.reservation.ReservationQueryDTO;
 import com.anonymous.dto.admin.user.UserQueryDTO;
 import com.anonymous.dto.admin.user.UserUpdateDTO;
@@ -21,4 +22,10 @@ public interface AdminUserService {
     UserReputationVO adjustUserReputation(Long userId, ReputationAdjustDTO request, Long operatorId);
 
     UserReputationVO getUserReputation(Long userId);
+
+    Boolean createUser(UserCreateDTO request);
+
+    Boolean enableUser(Long id);
+
+    Boolean resetPassword(Long id, String password);
 }

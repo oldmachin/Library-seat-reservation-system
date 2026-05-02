@@ -83,8 +83,7 @@ public class AdminRoomServiceImpl implements AdminRoomService {
         Room room = new Room();
         room.setName(request.name().trim());
         room.setCapacity(previewSeats.size());
-        room.setStatus(request.status() == null ? RoomStatus.AVAILABLE.getCode() : request.status());room.setLayoutTemplate(template);
-        room.setLayoutTemplate(template);
+        room.setStatus(request.status() == null ? RoomStatus.AVAILABLE.getCode() : request.status());
         room.setLayoutTemplate(template);
 
         roomMapper.insert(room);
@@ -108,12 +107,37 @@ public class AdminRoomServiceImpl implements AdminRoomService {
 
         boolean noFieldToUpdate = room.getName() == null
                 && room.getCapacity() == null
-                && room.getStatus() == null;
+                && room.getStatus() == null
+                && room.getLayoutTemplate() == null;
         if (noFieldToUpdate) {
             return false;
         }
 
         return roomMapper.updateRoom(room) > 0;
+    }
+
+    @Override
+    public Boolean updateRoomStatus(Long id, Integer status) {
+        if (id == null) {
+            throw new InvalidParameterException("room.id");
+        }
+        if (status == null) {
+            throw new InvalidParameterException("room.status");
+        }
+
+        RoomStatus.fromCode(status);
+
+        Room room = roomMapper.findById(id);
+
+        if (room == null) {
+            throw new InvalidParameterException("room.id");
+        }
+
+        Room update = new Room();
+        update.setId(id);
+        update.setStatus(status);
+
+        return roomMapper.updateRoom(update) > 0;
     }
 
     private RoomAdminVO toRoomAdminVO(Room room) {

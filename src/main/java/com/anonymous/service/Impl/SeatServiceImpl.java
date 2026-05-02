@@ -120,6 +120,41 @@ public class SeatServiceImpl implements SeatService {
         }).toList();
     }
 
+    @Override
+    public Boolean updateSeatStatusByAdmin(Long seatId, Integer status, String maintenanceNote) {
+        if (seatId == null) {
+            throw new RuntimeException("座位ID不能为空");
+        }
+        if (status == null) {
+            throw new RuntimeException("座位状态不能为空");
+        }
+        if (status != SeatStatus.AVAILABLE.getCode() && status != SeatStatus.UNAVAILABLE.getCode()) {
+            throw new RuntimeException("管理员只能设置座位为可用或不可用");
+        }
+
+        Seat seat = seatMapper.findById(seatId);
+        if (seat == null) {
+            throw new RuntimeException("座位不存在");
+        }
+
+        if (seat.getStatus() == SeatStatus.RESERVED
+                || seat.getStatus() == SeatStatus.OCCUPIED
+                || seat.getStatus() == SeatStatus.AWAY) {
+            throw new RuntimeException("座位正在预约或使用中，不能直接修改状态");
+        }
+
+        String note = status == SeatStatus.UNAVAILABLE.getCode()
+                ? (maintenanceNote == null ? "" : maintenanceNote.trim())
+                : "";
+
+        int rows = seatMapper.updateStatusAndNote(seatId, status, note);
+        if (rows > 0) {
+            roomSeatBroadcastService.broadcastRoomSnapshot(seat.getRoomId());
+        }
+
+        return rows > 0;
+    }
+
     private String toSeatVisualStatus(SeatStatus status) {
         if (status == null) {
             return "unavailable";

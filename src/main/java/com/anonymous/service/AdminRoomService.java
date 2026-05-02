@@ -15,4 +15,6 @@ public interface AdminRoomService {
     Boolean addRoom(RoomCreateDTO request);
 
     Boolean updateRoom(Room room);
+
+    Boolean updateRoomStatus(Long id, Integer status);
 }
