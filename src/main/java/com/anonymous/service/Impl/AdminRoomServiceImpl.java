@@ -198,8 +198,7 @@ public class AdminRoomServiceImpl implements AdminRoomService {
         }
 
         Room afterRoom = roomMapper.findById(id);
-        recordRoomAction(RoomSeatAdminActionType.ROOM_UPDATED,
-                room, afterRoom, "管理员修改房间状态");
+        recordRoomAction(RoomSeatAdminActionType.ROOM_STATUS_UPDATED, room, afterRoom, "管理员修改房间状态");
 
         return true;
     }
