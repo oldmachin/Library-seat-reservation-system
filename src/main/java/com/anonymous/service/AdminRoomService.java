@@ -1,9 +1,11 @@
 package com.anonymous.service;
 
 import com.anonymous.common.Page;
+import com.anonymous.dto.admin.RoomSeatAdminActionQueryDTO;
 import com.anonymous.dto.admin.room.RoomCreateDTO;
 import com.anonymous.dto.admin.room.RoomQueryDTO;
 import com.anonymous.model.Room;
+import com.anonymous.vo.RoomSeatAdminActionLogVO;
 import com.anonymous.vo.admin.RoomAdminVO;
 
 public interface AdminRoomService {
@@ -17,4 +19,6 @@ public interface AdminRoomService {
     Boolean updateRoom(Room room);
 
     Boolean updateRoomStatus(Long id, Integer status);
+
+    Page<RoomSeatAdminActionLogVO> listRoomSeatActions(RoomSeatAdminActionQueryDTO queryDTO);
 }

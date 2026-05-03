@@ -2,6 +2,7 @@ package com.anonymous.service.Impl;
 
 import com.anonymous.common.Page;
 import com.anonymous.common.TimeSlot;
+import com.anonymous.common.exception.InvalidOperationStatusException;
 import com.anonymous.common.exception.InvalidParameterException;
 import com.anonymous.common.util.ReservationStatusValidator;
 import com.anonymous.common.util.ReservationTimeValidator;
@@ -158,155 +159,134 @@ public class ReservationServiceImpl implements ReservationService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean cancelReservation(Long userId, Long seatId) {
-        try {
-            Reservation reservation = reservationMapper.findLatestPendingByUserIdAndSeatId(userId, seatId);
-            if (reservation == null) {
-                return false;
-            }
-
-            ReservationStatusValidator.validateUserCancel(reservation.getStatus());
-
-            int rows = reservationMapper.updateStatus(
-                    reservation.getId(),
-                    ReservationStatus.PENDING.getCode(),
-                    ReservationStatus.USER_CANCELLED.getCode()
-            );
-            if (rows == 0) {
-                return false;
-            }
-            reservationSlotMapper.deleteByReservationId(reservation.getId());
-            roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());
-            reputationService.onUserCancelled(
-                    reservation.getUserId(),
-                    reservation.getId()
-            );
-            return true;
-        } catch (Exception e) {
-            throw new RuntimeException("取消预约失败" + e.getMessage(), e);
+        Reservation reservation = reservationMapper.findLatestPendingByUserIdAndSeatId(userId, seatId);
+        if (reservation == null) {
+            throw new RuntimeException("当前没有可取消的预约");
         }
+
+        ReservationStatusValidator.validateUserCancel(reservation.getStatus());
+
+        int rows = reservationMapper.updateStatus(
+                reservation.getId(),
+                ReservationStatus.PENDING.getCode(),
+                ReservationStatus.USER_CANCELLED.getCode()
+        );
+        if (rows == 0) {
+            throw new InvalidOperationStatusException("预约状态已变化，取消失败");
+        }
+        reservationSlotMapper.deleteByReservationId(reservation.getId());
+        roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());
+        reputationService.onUserCancelled(
+                reservation.getUserId(),
+                reservation.getId()
+            );
+        return true;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean checkIn(Long userId, Long seatId) {
-//        log.info("【签到业务】用户 {} 尝试在座位 {} 签到", userId, seatId);
-        try {
-            Reservation reservation = reservationMapper.findPending(userId);
+        Reservation reservation = reservationMapper.findPending(userId);
 
-            if (reservation == null) {
+        if (reservation == null) {
 //                log.warn("【签到失败】用户{}没有代签到的记录", userId);
-                throw new RuntimeException("您没有待签到的记录，请您先预约");
-            }
-
-            if (!reservation.getSeatId().equals(seatId)) {
-//                log.warn("【走错座位】用户 {} 预约了 {}, 但扫描了 {}", userId, reservation.getSeatId(), seatId);
-                throw new RuntimeException("走错位置啦！您预约的座位不是这个，请重新核对座位号！");
-            }
-
-            ReservationStatusValidator.validateCheckIn(reservation.getStatus());
-
-            int rows = reservationMapper.updateStatus(
-                    reservation.getId(),
-                    ReservationStatus.PENDING.getCode(),
-                    ReservationStatus.IN_USE.getCode());
-
-            if (rows == 0) {
-//                log.error("【并发冲突】更新预约单状态失败，可能已被其他线程修改。单号: {}", reservation.getId());
-                return false;
-            }
-
-            reservationMapper.updateActualStartTime(reservation.getId(), LocalDateTime.now());
-            seatMapper.updateStatus(seatId, SeatStatus.OCCUPIED.getCode());
-//            log.info("【签到成功】用户 {} 已成功入座 {}", userId, seatId);
-            roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());
-            return true;
-        } catch (Exception e) {
-//            log.error("【系统异常】签到落库失败！userId: {}, seatId: {}", userId, seatId, e);
-            throw new RuntimeException("签到事务执行失败，触发回滚" + e.getMessage(), e);
+            throw new RuntimeException("您没有待签到的记录，请您先预约");
         }
+
+        if (!reservation.getSeatId().equals(seatId)) {
+//                log.warn("【走错座位】用户 {} 预约了 {}, 但扫描了 {}", userId, reservation.getSeatId(), seatId);
+            throw new RuntimeException("走错位置啦！您预约的座位不是这个，请重新核对座位号！");
+        }
+
+        ReservationStatusValidator.validateCheckIn(reservation.getStatus());
+
+        int rows = reservationMapper.updateStatus(
+                reservation.getId(),
+                ReservationStatus.PENDING.getCode(),
+                ReservationStatus.IN_USE.getCode());
+
+        if (rows == 0) {
+            throw new InvalidOperationStatusException("预约状态已变化，签到失败");
+        }
+
+
+        reservationMapper.updateActualStartTime(reservation.getId(), LocalDateTime.now());
+        seatMapper.updateStatus(seatId, SeatStatus.OCCUPIED.getCode());
+//            log.info("【签到成功】用户 {} 已成功入座 {}", userId, seatId);
+        roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());
+        return true;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean checkOut(Long userId) {
 //        log.info("【签退服务】用户 {} 尝试签退", userId);
+        Reservation reservation = reservationMapper.findInUse(userId);
 
-        try {
-            Reservation reservation = reservationMapper.findInUse(userId);
-
-            if (reservation == null) {
+        if (reservation == null) {
 //                log.warn("【签退失败】用户{}没有待签退的记录", userId);
-                throw new RuntimeException("您没有待签退的记录，请您先预约");
-            }
-
-            ReservationStatusValidator.validateCheckOut(reservation.getStatus());
-
-            int rows = reservationMapper.updateStatus(reservation.getId(), ReservationStatus.IN_USE.getCode(), ReservationStatus.COMPLETED.getCode());
-            if (rows == 0) {
-//                log.error("【并发冲突】更新签退状态失败，可能已被其他线程修改。单号: {}", reservation.getId());
-                return false;
-            }
-
-            reservationSlotMapper.deleteByReservationId(reservation.getId());
-            reservationMapper.updateTempLeaveStartTime(reservation.getId(), null);
-            reservationMapper.updateActualEndTime(reservation.getId(), LocalDateTime.now());
-            seatMapper.updateStatus(reservation.getSeatId(), SeatStatus.AVAILABLE.getCode());
-//            log.info("【签退成功】用户{}已成功签退", userId);
-            roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());;
-            reputationService.onReservationCompleted(reservation.getUserId(), reservation.getId());
-            return true;
-        } catch (Exception e) {
-//            log.error("【系统异常】签退失败！userId: {}", userId, e);
-            throw new RuntimeException("签退事务执行失败，触发回滚" + e.getMessage(), e);
+            throw new RuntimeException("您没有待签退的记录，请您先预约");
         }
+
+        ReservationStatusValidator.validateCheckOut(reservation.getStatus());
+
+        int rows = reservationMapper.updateStatus(reservation.getId(), ReservationStatus.IN_USE.getCode(), ReservationStatus.COMPLETED.getCode());
+        if (rows == 0) {
+//                log.error("【并发冲突】更新签退状态失败，可能已被其他线程修改。单号: {}", reservation.getId());
+            throw new InvalidOperationStatusException("预约状态已变化，签退失败");
+        }
+
+        reservationSlotMapper.deleteByReservationId(reservation.getId());
+        reservationMapper.updateTempLeaveStartTime(reservation.getId(), null);
+        reservationMapper.updateActualEndTime(reservation.getId(), LocalDateTime.now());
+        seatMapper.updateStatus(reservation.getSeatId(), SeatStatus.AVAILABLE.getCode());
+//            log.info("【签退成功】用户{}已成功签退", userId);
+        roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());
+        reputationService.onReservationCompleted(reservation.getUserId(), reservation.getId());
+        return true;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean leaveTemp(Long userId) {
-        try {
-            Reservation reservation = reservationMapper.findInUse(userId);
-            if (reservation == null) {
-                return false;
-            }
-
-            ReservationStatusValidator.validateLeaveTemp(reservation.getStatus());
-
-            LocalDateTime tempLeaveStartTime = LocalDateTime.now().withNano(0);
-            reservationMapper.updateTempLeaveStartTime(reservation.getId(), tempLeaveStartTime);
-            seatMapper.updateStatus(reservation.getSeatId(), SeatStatus.AWAY.getCode());
-            roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());
-            publishTempLeaveTimeoutMessage(reservation, tempLeaveStartTime);
-            return true;
-        } catch (Exception e) {
-            throw new RuntimeException("暂离事务执行失败", e);
+        Reservation reservation = reservationMapper.findInUse(userId);
+        if (reservation == null) {
+            throw new RuntimeException("当前没有使用中的预约，无法暂离");
         }
+
+        ReservationStatusValidator.validateLeaveTemp(reservation.getStatus());
+
+        LocalDateTime tempLeaveStartTime = LocalDateTime.now().withNano(0);
+        reservationMapper.updateTempLeaveStartTime(reservation.getId(), tempLeaveStartTime);
+        seatMapper.updateStatus(reservation.getSeatId(), SeatStatus.AWAY.getCode());
+        roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());
+        publishTempLeaveTimeoutMessage(reservation, tempLeaveStartTime);
+        return true;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean returnTemp(Long userId, Long seatId) {
-        try {
-            Reservation reservation = reservationMapper.findInUse(userId);
-            if (reservation == null || !reservation.getSeatId().equals(seatId)) {
-                return false;
-            }
-
-            Seat seat = seatMapper.findById(seatId);
-
-            ReservationStatusValidator.validateLeaveTemp(reservation.getStatus());
-            if (seat.getStatus() == null) {
-                throw new RuntimeException("座位状态异常");
-            }
-            ReservationStatusValidator.validateReturnTemp(seat.getStatus().getCode());
-
-            reservationMapper.updateTempLeaveStartTime(reservation.getId(), null);
-            seatMapper.updateStatus(seatId, SeatStatus.OCCUPIED.getCode());
-            roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());
-            return true;
-        } catch (Exception e) {
-            throw new RuntimeException("返回事务执行失败" + e.getMessage(), e);
+        Reservation reservation = reservationMapper.findInUse(userId);
+        if (reservation == null) {
+            throw new RuntimeException("当前没有使用中的预约，无法返回");
         }
+        if (!reservation.getSeatId().equals(seatId)) {
+            throw new RuntimeException("座位不匹配，无法返回");
+        }
+
+        Seat seat = seatMapper.findById(seatId);
+
+        ReservationStatusValidator.validateLeaveTemp(reservation.getStatus());
+        if (seat.getStatus() == null) {
+            throw new RuntimeException("座位状态异常");
+        }
+        ReservationStatusValidator.validateReturnTemp(seat.getStatus().getCode());
+
+        reservationMapper.updateTempLeaveStartTime(reservation.getId(), null);
+        seatMapper.updateStatus(seatId, SeatStatus.OCCUPIED.getCode());
+        roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());
+        return true;
     }
 
     @Override
@@ -333,8 +313,6 @@ public class ReservationServiceImpl implements ReservationService {
                     roomSeatBroadcastService.broadcastRoomSnapshot(reservation.getRoomId());
                     reputationService.onReservationExpired(reservation.getUserId(), reservation.getId());
 //                    log.info("【座位回收】座位 {} 已重新释放到公共资源池", seatId);
-                } else {
-//                    log.info("【极限抢救】订单 {} 状态更新失败，用户可能在最后一秒完成了签到", reservationId);
                 }
             }
         } catch (Exception e) {

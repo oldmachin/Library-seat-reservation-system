@@ -1,7 +1,7 @@
 package com.anonymous.common.exception;
 
-public class InvalidParameterException extends RuntimeException {
+public class InvalidParameterException extends BusinessException {
     public InvalidParameterException(String parameterName) {
-        super("Invalid Parameter: " + parameterName);
+        super(400, "参数错误：" + parameterName);
     }
 }

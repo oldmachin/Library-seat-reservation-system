@@ -9,7 +9,7 @@ import com.anonymous.dto.admin.reservation.ReservationQueryDTO;
 import com.anonymous.dto.admin.user.UserQueryDTO;
 import com.anonymous.dto.admin.user.UserUpdateDTO;
 import com.anonymous.service.AdminUserService;
-import com.anonymous.vo.ReputationAdjustDTO;
+import com.anonymous.dto.ReputationAdjustDTO;
 import com.anonymous.vo.UserReputationVO;
 import com.anonymous.vo.admin.ReservationAdminVO;
 import com.anonymous.vo.admin.UserAdminVO;

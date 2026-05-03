@@ -1,4 +1,4 @@
-package com.anonymous.vo;
+package com.anonymous.dto;
 
 public record ReputationAdjustDTO(
         Integer delta,

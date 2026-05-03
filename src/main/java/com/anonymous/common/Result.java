@@ -1,7 +1,7 @@
 package com.anonymous.common;
 
 public class Result<T> {
-    private Integer code;
+    private Integer code; // 400 - 参数错误， 401 - 未登录， 403 - 禁用， 409 - 状态冲突， 500 - 系统异常
     private String message;
     private T data;
 
@@ -37,11 +37,15 @@ public class Result<T> {
         this.data = data;
     }
 
-    public static <T> Result<T> fail(T data, String message) {
+    public static <T> Result<T> fail(Integer code, T data, String message) {
         Result<T> result = new Result<>();
-        result.code = 500;
+        result.code = code;
         result.data = data;
         result.message = message;
         return result;
+    }
+
+    public static <T> Result<T> fail(Integer code, String message) {
+        return fail(code, null, message);
     }
 }

@@ -2,15 +2,21 @@ package com.anonymous.service.Impl;
 
 import com.anonymous.common.TimeSlot;
 import com.anonymous.common.util.ReservationTimeValidator;
+import com.anonymous.common.util.SecurityUtils;
 import com.anonymous.mapper.ReservationSlotMapper;
+import com.anonymous.mapper.RoomSeatAdminActionMapper;
 import com.anonymous.mapper.SeatMapper;
+import com.anonymous.model.RoomSeatAdminAction;
 import com.anonymous.model.Seat;
+import com.anonymous.model.enums.AdminResourceType;
+import com.anonymous.model.enums.RoomSeatAdminActionType;
 import com.anonymous.model.enums.SeatStatus;
 import com.anonymous.service.RoomSeatBroadcastService;
 import com.anonymous.service.SeatService;
 import com.anonymous.vo.SeatAvailabilityVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -29,12 +35,47 @@ public class SeatServiceImpl implements SeatService {
     @Autowired
     private ReservationSlotMapper reservationSlotMapper;
 
+    @Autowired
+    private RoomSeatAdminActionMapper roomSeatAdminActionMapper;
+
     @Override
     public void updateSeatStatus(Long seatId, SeatStatus status) {
         seatMapper.updateStatus(seatId, status.getCode());
     }
 
+    private void recordSeatAction(RoomSeatAdminActionType actionType,
+                                  Seat before,
+                                  Integer afterStatus,
+                                  String afterNote,
+                                  String reason) {
+        RoomSeatAdminAction action = new RoomSeatAdminAction();
+        action.setResourceType(AdminResourceType.SEAT.name());
+        action.setActionType(actionType.name());
+        action.setOperatorId(SecurityUtils.getCurrentUserId());
+
+        action.setRoomId(before.getRoomId());
+        action.setSeatId(before.getId());
+
+        action.setBeforeStatus(before.getStatus() == null ? null : before.getStatus().getCode());
+        action.setAfterStatus(afterStatus);
+
+        action.setBeforeNote(before.getMaintenanceNote());
+        action.setAfterNote(afterNote);
+
+        action.setReason(reason == null ? "" : reason.trim());
+
+        try {
+            action.setOperatorId(SecurityUtils.getCurrentUserId());
+        } catch (RuntimeException e) {
+            action.setOperatorId(null);
+        }
+
+        roomSeatAdminActionMapper.insert(action);
+    }
+
+
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void markDefective(Long seatId, String reason) {
         if (reason == null || reason.trim().isEmpty()) {
             throw new RuntimeException("损坏原因不能为空");
@@ -121,6 +162,7 @@ public class SeatServiceImpl implements SeatService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public Boolean updateSeatStatusByAdmin(Long seatId, Integer status, String maintenanceNote) {
         if (seatId == null) {
             throw new RuntimeException("座位ID不能为空");
@@ -151,6 +193,14 @@ public class SeatServiceImpl implements SeatService {
         if (rows > 0) {
             roomSeatBroadcastService.broadcastRoomSnapshot(seat.getRoomId());
         }
+
+        recordSeatAction(
+                RoomSeatAdminActionType.SEAT_STATUS_UPDATED,
+                seat,
+                status,
+                note,
+                status == SeatStatus.UNAVAILABLE.getCode() ? "管理员设为不可用" : "管理员恢复可用"
+        );
 
         return rows > 0;
     }

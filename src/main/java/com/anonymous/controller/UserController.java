@@ -12,6 +12,7 @@ import com.anonymous.service.ReputationService;
 import com.anonymous.service.UserService;
 import com.anonymous.vo.ReputationRecordVO;
 import com.anonymous.vo.UserReputationVO;
+import com.anonymous.websocket.ReservationWebSocketHandler;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.bind.annotation.*;
@@ -37,6 +38,9 @@ public class UserController {
 
     @Autowired
     private ReputationService reputationService;
+
+    @Autowired
+    private ReservationWebSocketHandler reservationWebSocketHandler;
 
     private Map<String, Object> buildUserInfo(User user) {
         Map<String, Object> userInfo = new HashMap<>();
@@ -83,21 +87,17 @@ public class UserController {
     @PutMapping("/me")
     public Result<Boolean> updateProfile(@RequestBody UserProfileUpdateDTO request) {
         Long userId = SecurityUtils.getCurrentUserId();
-        boolean updated = userService.updateProfile(userId, request.name());
-        if (updated) {
-            return Result.success(true, "个人资料更新成功");
-        }
-        return Result.fail(false, "个人资料更新失败");
+        userService.updateProfile(userId, request.name());
+        return Result.success(true, "个人资料更新成功");
     }
 
     @PostMapping("/change-password")
     public Result<Boolean> changePassword(@RequestBody ChangePasswordDTO request) {
         Long userId = SecurityUtils.getCurrentUserId();
-        boolean changed = userService.changePassword(userId, request.oldPassword(), request.newPassword());
-        if (changed) {
-            return Result.success(true, "密码修改成功");
-        }
-        return Result.fail(false, "密码修改失败");
+        userService.changePassword(userId, request.oldPassword(), request.newPassword());
+        redisTemplate.delete(AUTH_USER_PREFIX + userId);
+        reservationWebSocketHandler.closeUserSessions(userId, "密码已修改，请重新登录");
+        return Result.success(true, "密码修改成功");
     }
 
     @GetMapping("/reputation")

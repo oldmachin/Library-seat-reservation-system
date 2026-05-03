@@ -6,6 +6,7 @@ DROP TABLE IF EXISTS seat;
 DROP TABLE IF EXISTS room;
 DROP TABLE IF EXISTS user;
 DROP TABLE IF EXISTS reservation_admin_action;
+DROP TABLE IF EXISTS room_seat_admin_action;
 
 CREATE TABLE IF NOT EXISTS user (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -126,6 +127,45 @@ CREATE TABLE IF NOT EXISTS reservation_admin_action (
     CONSTRAINT fk_admin_action_reservation FOREIGN KEY (reservation_id) REFERENCES reservation(id) ON DELETE CASCADE,
     CONSTRAINT fk_admin_action_operator FOREIGN KEY (operator_id) REFERENCES user(id) ON DELETE SET NULL,
     KEY idx_admin_action_reservation_time (reservation_id, create_time)
+);
+
+CREATE TABLE IF NOT EXISTS room_seat_admin_action (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    resource_type VARCHAR(16) NOT NULL,
+    action_type VARCHAR(32) NOT NULL,
+    operator_id BIGINT NULL,
+    room_id BIGINT NOT NULL,
+    seat_id BIGINT NULL,
+
+    before_status INT NULL,
+    after_status INT NULL,
+
+    before_name VARCHAR(100) NULL,
+    after_name VARCHAR(100) NULL,
+
+    before_capacity INT NULL,
+    after_capacity INT NULL,
+
+    before_template VARCHAR(64) NULL,
+    after_template VARCHAR(64) NULL,
+
+    before_note VARCHAR(255) NULL,
+    after_note VARCHAR(255) NULL,
+
+    reason VARCHAR(255) NOT NULL DEFAULT '',
+    create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_room_seat_action_operator
+        FOREIGN KEY (operator_id) REFERENCES user(id) ON DELETE SET NULL,
+    CONSTRAINT fk_room_seat_action_room
+        FOREIGN KEY (room_id) REFERENCES room(id) ON DELETE CASCADE,
+    CONSTRAINT fk_room_seat_action_seat
+        FOREIGN KEY (seat_id) REFERENCES seat(id) ON DELETE CASCADE,
+
+    KEY idx_room_seat_action_time (create_time),
+    KEY idx_room_seat_action_room_time (room_id, create_time),
+    KEY idx_room_seat_action_seat_time (seat_id, create_time),
+    KEY idx_room_seat_action_type_time (action_type, create_time)
 );
 
 -- 用户

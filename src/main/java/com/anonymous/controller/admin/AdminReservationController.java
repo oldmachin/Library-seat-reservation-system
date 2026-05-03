@@ -41,44 +41,32 @@ public class AdminReservationController {
     @PostMapping("/{id}/cancel")
     public Result<Boolean> cancelReservation(@PathVariable Long id,
                                              @RequestBody(required = false)AdminCancelReservationDTO request) {
-        try {
-            String reason = request == null ? null : request.reason();
-            return Result.success(
-                    adminReservationService.cancelReservation(id, reason),
-                    "取消预约成功"
-            );
-        } catch (RuntimeException e) {
-            return Result.fail(false, e.getMessage());
-        }
+        String reason = request == null ? null : request.reason();
+        return Result.success(
+                adminReservationService.cancelReservation(id, reason),
+                "取消预约成功"
+        );
     }
 
     @PostMapping("/{id}/complete")
     public Result<Boolean> completeReservation(@PathVariable Long id) {
-        try {
-            return Result.success(
-                    adminReservationService.completeReservation(id),
-                    "标记完成成功"
-            );
-        } catch (RuntimeException e) {
-            return Result.fail(false, e.getMessage());
-        }
+        return Result.success(
+                adminReservationService.completeReservation(id),
+                "标记完成成功"
+        );
     }
 
     @PostMapping("/{id}/violation")
     public Result<Boolean> violationReservation(@PathVariable Long id,
                                                 @RequestBody(required = false) AdminViolationDTO request) {
-        try {
-            String reason = request == null ? null : request.reason();
-            Integer penaltyLevel = request == null ? null : request.penaltyLevel();
-            Integer banDays = request == null ? null : request.banDays();
+        String reason = request == null ? null : request.reason();
+        Integer penaltyLevel = request == null ? null : request.penaltyLevel();
+        Integer banDays = request == null ? null : request.banDays();
 
-            return Result.success(
-                    adminReservationService.violationReservation(id, reason, penaltyLevel, banDays),
-                    "标记违约成功"
-            );
-        } catch (RuntimeException e) {
-            return Result.fail(false, e.getMessage());
-        }
+        return Result.success(
+                adminReservationService.violationReservation(id, reason, penaltyLevel, banDays),
+                "标记违约成功"
+        );
     }
 
     @GetMapping("/current")

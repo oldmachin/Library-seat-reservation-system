@@ -101,6 +101,9 @@ public class UserServiceImpl implements UserService {
         }
 
         int rows = userMapper.updateNameById(id, trimmedName);
+        if (rows == 0) {
+            throw new RuntimeException("个人资料更新失败");
+        }
         return rows > 0;
     }
 
@@ -125,7 +128,10 @@ public class UserServiceImpl implements UserService {
         }
         String encodedPassword = passwordEncoder.encode(newPassword);
         int rows = userMapper.updatePasswordById(id, encodedPassword);
-        return rows > 0;
+        if (rows == 0) {
+            throw new RuntimeException("密码修改失败");
+        }
+        return true;
     }
 
     @Override

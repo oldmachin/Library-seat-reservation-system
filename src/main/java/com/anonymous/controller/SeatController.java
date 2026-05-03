@@ -29,12 +29,8 @@ public class SeatController {
 
     @PostMapping("/{seatId}/defective")
     Result<Boolean> markDefective(@PathVariable Long seatId, @RequestBody String reason) {
-        try {
-            seatService.markDefective(seatId, reason);
-            return Result.success(true, "座位已经成功标记为损坏");
-        } catch (RuntimeException e) {
-            return Result.fail(false, e.getMessage());
-        }
+        seatService.markDefective(seatId, reason);
+        return Result.success(true, "座位已经成功标记为损坏");
     }
 
     @GetMapping("/room/{roomId}/availability")

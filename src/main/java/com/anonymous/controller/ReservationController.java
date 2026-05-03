@@ -43,59 +43,39 @@ public class ReservationController {
    @PostMapping("/cancel")
    public Result<Boolean> cancelReservation(@RequestBody SeatActionRequestDTO request) {
         Long userId = SecurityUtils.getCurrentUserId();
-        boolean result = reservationService.cancelReservation(userId, request.seatId());
-        if (result) {
-            return Result.success(true, "取消成功");
-        }
-        return Result.fail(false, "取消失败");
+        reservationService.cancelReservation(userId, request.seatId());
+        return Result.success(true, "取消成功");
    }
 
    @PostMapping("/check-in")
    public Result<Boolean> checkInReservation(@RequestBody SeatActionRequestDTO request) {
-       boolean result = reservationService.checkIn(SecurityUtils.getCurrentUserId(), request.seatId());
-
-       if (result) {
-           return Result.success(true, "签到成功");
-       }
-       return Result.fail(false, "签到失败");
+       reservationService.checkIn(SecurityUtils.getCurrentUserId(), request.seatId());
+       return Result.success(true, "签到成功");
    }
 
    @PostMapping("/check-out")
    public Result<Boolean> checkOutReservation() {
-       boolean result = reservationService.checkOut(SecurityUtils.getCurrentUserId());
-
-       if (result) {
-           return Result.success(true, "签退成功");
-       }
-       return Result.fail(false, "签退失败");
+       reservationService.checkOut(SecurityUtils.getCurrentUserId());
+       return Result.success(true, "签退成功");
    }
 
    @PostMapping("/leave-temp")
    public Result<Boolean> leaveTemporary() {
-       boolean result = reservationService.leaveTemp(SecurityUtils.getCurrentUserId());
-       if (result) {
-           return Result.success(true, "暂离成功");
-       }
-       return Result.fail(false, "暂离失败");
+       reservationService.leaveTemp(SecurityUtils.getCurrentUserId());
+       return Result.success(true, "暂离成功");
    }
 
    @PostMapping("/return-temp")
    public Result<Boolean> returnTemporary(@RequestBody SeatActionRequestDTO request) {
-       boolean result = reservationService.returnTemp(SecurityUtils.getCurrentUserId(), request.seatId());
-       if (result) {
-           return Result.success(true, "返回成功");
-       }
-       return Result.fail(false, "返回失败");
+       reservationService.returnTemp(SecurityUtils.getCurrentUserId(), request.seatId());
+       return Result.success(true, "返回成功");
    }
 
    @GetMapping("/my-current")
    public Result<Reservation> getCurrentReservation() {
-        Long userId = SecurityUtils.getCurrentUserId();
+       Long userId = SecurityUtils.getCurrentUserId();
        Reservation reservation = reservationService.getCurrent(userId);
-       if (reservation != null) {
-           return Result.success(reservation, "查询成功");
-       }
-       return Result.fail(null, "当前没有预约");
+       return Result.success(reservation, reservation == null ? "当前没有预约" : "查询成功");
    }
 
     @GetMapping("/{id}")
