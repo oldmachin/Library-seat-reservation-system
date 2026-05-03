@@ -1,6 +1,8 @@
 package com.anonymous.security.filter;
 
+import com.anonymous.common.exception.BusinessException;
 import com.anonymous.common.util.JwtUtil;
+import com.anonymous.common.util.ResultResponseWriter;
 import com.anonymous.mapper.UserMapper;
 import com.anonymous.model.User;
 import io.jsonwebtoken.Claims;
@@ -47,39 +49,45 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             Claims claims = jwtUtil.getClaims(token);
 
             if (claims == null || claims.getSubject() == null || claims.getSubject().isBlank()) {
-                throw new RuntimeException("token无效或已经过期");
+                throw new BusinessException(401, "token无效或已经过期");
             }
 
             String userId = claims.getSubject();
 
-            String cachedToken  = redisTemplate.opsForValue().get(AUTH_USER_PREFIX + userId);
+            String cachedToken = redisTemplate.opsForValue().get(AUTH_USER_PREFIX + userId);
             if (cachedToken == null || !cachedToken.equals(token)) {
-                throw new RuntimeException("会话已失效或已在别处登录");
+                throw new BusinessException(401, "会话已失效或已在别处登录");
             }
 
             Long currentUserId = Long.valueOf(userId);
             User user = userMapper.findById(currentUserId);
             if (user == null) {
                 redisTemplate.delete(AUTH_USER_PREFIX + userId);
-                throw new RuntimeException("用户不存在");
+                throw new BusinessException(401, "用户不存在");
             }
             if (user.getStatus() == null || user.getStatus() != 0) {
                 redisTemplate.delete((AUTH_USER_PREFIX + userId));
-                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                response.setContentType("application/json;charset=UTF-8");
-                response.getWriter().write("{\"code\":403, \"message\":\"账号已被禁用，请联系管理员\"}");
+                SecurityContextHolder.clearContext();
+                ResultResponseWriter.write(
+                        response,
+                        HttpServletResponse.SC_FORBIDDEN,
+                        403,
+                        "账号已被禁用，请联系管理员"
+                );
                 return;
             }
 
-            UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                    userId, null, new ArrayList<>()
-            );
+            UsernamePasswordAuthenticationToken authentication =
+                    new UsernamePasswordAuthenticationToken(userId, null, new ArrayList<>());
             SecurityContextHolder.getContext().setAuthentication(authentication);
         } catch (Exception e) {
             SecurityContextHolder.clearContext();
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.setContentType("application/json;charset=UTF-8");
-            response.getWriter().write("{\"code\":401, \"message\":\"" + e.getMessage() + "\"}");
+            ResultResponseWriter.write(
+                    response,
+                    HttpServletResponse.SC_UNAUTHORIZED,
+                    401,
+                    e.getMessage() == null ? "登录已失效，请重新登录" : e.getMessage()
+            );
             return;
         }
 

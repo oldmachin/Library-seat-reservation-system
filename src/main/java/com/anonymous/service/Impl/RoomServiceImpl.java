@@ -1,5 +1,6 @@
 package com.anonymous.service.Impl;
 
+import com.anonymous.common.exception.InvalidParameterException;
 import com.anonymous.mapper.RoomMapper;
 import com.anonymous.mapper.SeatMapper;
 import com.anonymous.model.Room;
@@ -22,10 +23,7 @@ public class RoomServiceImpl implements RoomService {
 
     @Override
     public void updateRoomStatus(Long id, Integer status) {
-        Room room = getRoomById(id);
-        if (room == null) {
-            throw new RuntimeException("阅览室不存在，ID: " + id);
-        }
+        getRoomById(id);
         roomMapper.update(id, status);
     }
 
@@ -55,7 +53,7 @@ public class RoomServiceImpl implements RoomService {
     public Room getRoomById(Long id) {
         Room room = roomMapper.findById(id);
         if (room == null) {
-            throw new RuntimeException("阅览室不存在，ID: " + id);
+            throw new InvalidParameterException("room.id");
         }
         return room;
     }

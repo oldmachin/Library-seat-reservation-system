@@ -1,5 +1,6 @@
 package com.anonymous.service;
 
+import com.anonymous.common.exception.InvalidParameterException;
 import com.anonymous.model.Seat;
 import com.anonymous.model.enums.SeatStatus;
 
@@ -73,7 +74,7 @@ public class RoomTemplateFactory {
             case "READING_HALL" -> createReadingHall(roomId);
             case "CLASSROOM" -> createClassroom(roomId);
             case "STUDY_ROOM_LARGE" -> createStudyRoomLarge(roomId);
-            default -> throw new RuntimeException("未知房间模板");
+            default -> throw new InvalidParameterException("room.layoutTemplate");
         };
     }
 

@@ -1,5 +1,6 @@
 package com.anonymous.mq;
 
+import com.anonymous.common.exception.BusinessException;
 import com.anonymous.config.ReservationMqConstants;
 import com.anonymous.dto.ReservationTimeoutMessage;
 import com.anonymous.model.enums.ReservationTimeoutEventType;
@@ -28,7 +29,7 @@ public class ReservationTimeoutConsumer {
         try {
             return objectMapper.readValue(body, ReservationTimeoutMessage.class);
         } catch (Exception e) {
-            throw new RuntimeException("反序列化预约超时消息失败", e);
+            throw new BusinessException(500, "反序列化预约超时消息失败", e);
         }
     }
 

@@ -1,5 +1,6 @@
 package com.anonymous.common.util;
 
+import com.anonymous.common.exception.BusinessException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -11,7 +12,7 @@ public class SecurityUtils {
 
         if (authentication == null || !authentication.isAuthenticated()
                 || "anonymousUser".equals(authentication.getPrincipal())) {
-            throw new RuntimeException("当前会话未授信或已过期");
+            throw new BusinessException(401, "当前会话未授信或已过期");
         }
 
         Object principal = authentication.getPrincipal();
@@ -24,6 +25,6 @@ public class SecurityUtils {
             return ((Number) principal).longValue();
         }
 
-        throw new RuntimeException("无法识别当前用户身份");
+        throw new BusinessException(401, "无法识别当前用户身份");
     }
 }

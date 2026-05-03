@@ -1,6 +1,8 @@
 package com.anonymous.service.Impl;
 
 import com.anonymous.common.Page;
+import com.anonymous.common.exception.BusinessException;
+import com.anonymous.common.exception.InvalidParameterException;
 import com.anonymous.dto.UserCreateDTO;
 import com.anonymous.dto.admin.reservation.ReservationQueryDTO;
 import com.anonymous.dto.admin.user.UserQueryDTO;
@@ -117,13 +119,13 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Transactional(rollbackFor = Exception.class)
     public UserReputationVO adjustUserReputation(Long userId, ReputationAdjustDTO request, Long operatorId) {
         if (request.delta() == null || request.delta() == 0) {
-            throw new RuntimeException("调整分值不能为空且不能为0");
+            throw new InvalidParameterException("reputation.delta");
         }
         if (Math.abs(request.delta()) > 30) {
-            throw new RuntimeException("单次调整分值不能超过30");
+            throw new InvalidParameterException("reputation.delta");
         }
         if (request.reason() == null || request.reason().trim().isEmpty()) {
-            throw new RuntimeException("调整原因不能为空");
+            throw new InvalidParameterException("reputation.reason");
         }
 
         reputationService.onAdminAdjusted(userId, request.delta(), request.reason().trim(), operatorId);
@@ -139,7 +141,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Transactional(rollbackFor = Exception.class)
     public Boolean createUser(UserCreateDTO request) {
         if (request == null) {
-            throw new RuntimeException("用户信息不能为空");
+            throw new InvalidParameterException("user");
         }
 
         String name = request.name() == null ? "" : request.name().trim();
@@ -148,19 +150,19 @@ public class AdminUserServiceImpl implements AdminUserService {
         String role = request.role() == null ? "USER" : request.role().trim().toUpperCase();
 
         if (name.isEmpty()) {
-            throw new RuntimeException("姓名不能为空");
+            throw new InvalidParameterException("user.name");
         }
         if (username.isEmpty()) {
-            throw new RuntimeException("账号不能为空");
+            throw new InvalidParameterException("user.username");
         }
         if (password.length() < 6) {
-            throw new RuntimeException("密码长度不能少于6位");
+            throw new InvalidParameterException("user.password");
         }
         if (!"USER".equals(role) && !"ADMIN".equals(role)) {
-            throw new RuntimeException("角色只能是 USER 或 ADMIN");
+            throw new InvalidParameterException("user.role");
         }
         if (userMapper.findByUsername(username) != null) {
-            throw new RuntimeException("账号已存在");
+            throw new BusinessException(409, "账号已存在");
         }
 
         String encodedPassword = passwordEncoder.encode(password);
@@ -171,12 +173,12 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Transactional(rollbackFor = Exception.class)
     public Boolean enableUser(Long id) {
         if (id == null) {
-            throw new RuntimeException("用户ID不能为空");
+            throw new InvalidParameterException("user.id");
         }
 
         User user = userMapper.findById(id);
         if (user == null) {
-            throw new RuntimeException("用户不存在");
+            throw new BusinessException(404, "用户不存在");
         }
 
         UserUpdateDTO dto = new UserUpdateDTO(id, null, 0);
@@ -187,7 +189,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Transactional(rollbackFor = Exception.class)
     public Boolean resetPassword(Long id, String password) {
         if (id == null) {
-            throw new RuntimeException("用户ID不能为空");
+            throw new InvalidParameterException("user.id");
         }
 
         String rawPassword = password == null || password.trim().isEmpty()
@@ -195,12 +197,12 @@ public class AdminUserServiceImpl implements AdminUserService {
                 : password.trim();
 
         if (rawPassword.length() < 6) {
-            throw new RuntimeException("密码长度不能少于6位");
+            throw new InvalidParameterException("user.password");
         }
 
         User user = userMapper.findById(id);
         if (user == null) {
-            throw new RuntimeException("用户不存在");
+            throw new BusinessException(404, "用户不存在");
         }
 
         String encodedPassword = passwordEncoder.encode(rawPassword);

@@ -1,6 +1,7 @@
 package com.anonymous.service.Impl;
 
 import com.anonymous.common.Page;
+import com.anonymous.common.exception.InvalidOperationStatusException;
 import com.anonymous.common.exception.InvalidParameterException;
 import com.anonymous.common.util.SecurityUtils;
 import com.anonymous.dto.admin.RoomSeatAdminActionQueryDTO;
@@ -156,13 +157,13 @@ public class AdminRoomServiceImpl implements AdminRoomService {
                 && room.getStatus() == null
                 && room.getLayoutTemplate() == null;
         if (noFieldToUpdate) {
-            throw new RuntimeException("没有可更新的字段");
+            throw new InvalidParameterException("room.updateFields");
         }
 
 
         int rows = roomMapper.updateRoom(room);
         if (rows == 0) {
-            throw new RuntimeException("房间更新失败");
+            throw new InvalidOperationStatusException("房间更新失败");
         }
 
         Room afterRoom = roomMapper.findById(room.getId());
@@ -194,7 +195,7 @@ public class AdminRoomServiceImpl implements AdminRoomService {
 
         int rows = roomMapper.updateRoom(update);
         if (rows == 0) {
-            throw new RuntimeException("房间更新失败");
+            throw new InvalidOperationStatusException("房间更新失败");
         }
 
         Room afterRoom = roomMapper.findById(id);

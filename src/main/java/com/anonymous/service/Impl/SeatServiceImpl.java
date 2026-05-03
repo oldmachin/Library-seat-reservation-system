@@ -1,6 +1,8 @@
 package com.anonymous.service.Impl;
 
 import com.anonymous.common.TimeSlot;
+import com.anonymous.common.exception.InvalidOperationStatusException;
+import com.anonymous.common.exception.InvalidParameterException;
 import com.anonymous.common.util.ReservationTimeValidator;
 import com.anonymous.common.util.SecurityUtils;
 import com.anonymous.mapper.ReservationSlotMapper;
@@ -78,7 +80,7 @@ public class SeatServiceImpl implements SeatService {
     @Transactional(rollbackFor = Exception.class)
     public void markDefective(Long seatId, String reason) {
         if (reason == null || reason.trim().isEmpty()) {
-            throw new RuntimeException("损坏原因不能为空");
+            throw new InvalidParameterException("seat.reason");
         }
 
         reason = reason.trim();
@@ -86,15 +88,15 @@ public class SeatServiceImpl implements SeatService {
         Seat seat = seatMapper.findById(seatId);
 
         if (seat == null) {
-            throw new RuntimeException("座位不存在");
+            throw new InvalidParameterException("seat.id");
         }
 
         if (seat.getStatus() == null) {
-            throw new RuntimeException("座位状态异常");
+            throw new InvalidParameterException("seat.status");
         }
 
         if (seat.getStatus() == SeatStatus.UNAVAILABLE) {
-            throw new RuntimeException("该座位已被标记损坏");
+            throw new InvalidOperationStatusException("该座位已被标记损坏");
         }
 
         isSeatOperable(seatId);
@@ -108,7 +110,7 @@ public class SeatServiceImpl implements SeatService {
         Seat seat = seatMapper.findById(seatId);
 
         if (seat.getStatus() == SeatStatus.OCCUPIED || seat.getStatus() == SeatStatus.RESERVED || seat.getStatus() == SeatStatus.AWAY) {
-            throw new RuntimeException("该座位正在使用中，请先由管理员强制释放后再标记损坏");
+            throw new InvalidOperationStatusException("该座位正在使用中，请先由管理员强制释放后再标记损坏");
         }
 
         return seat.getStatus() != SeatStatus.UNAVAILABLE;
@@ -165,24 +167,24 @@ public class SeatServiceImpl implements SeatService {
     @Transactional(rollbackFor = Exception.class)
     public Boolean updateSeatStatusByAdmin(Long seatId, Integer status, String maintenanceNote) {
         if (seatId == null) {
-            throw new RuntimeException("座位ID不能为空");
+            throw new InvalidParameterException("seat.id");
         }
         if (status == null) {
-            throw new RuntimeException("座位状态不能为空");
+            throw new InvalidParameterException("seat.status");
         }
         if (status != SeatStatus.AVAILABLE.getCode() && status != SeatStatus.UNAVAILABLE.getCode()) {
-            throw new RuntimeException("管理员只能设置座位为可用或不可用");
+            throw new InvalidOperationStatusException("管理员只能设置座位为可用或不可用");
         }
 
         Seat seat = seatMapper.findById(seatId);
         if (seat == null) {
-            throw new RuntimeException("座位不存在");
+            throw new InvalidParameterException("seat.id");
         }
 
         if (seat.getStatus() == SeatStatus.RESERVED
                 || seat.getStatus() == SeatStatus.OCCUPIED
                 || seat.getStatus() == SeatStatus.AWAY) {
-            throw new RuntimeException("座位正在预约或使用中，不能直接修改状态");
+            throw new InvalidOperationStatusException("座位正在预约或使用中，不能直接修改状态");
         }
 
         String note = status == SeatStatus.UNAVAILABLE.getCode()

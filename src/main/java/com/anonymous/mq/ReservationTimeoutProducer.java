@@ -1,5 +1,6 @@
 package com.anonymous.mq;
 
+import com.anonymous.common.exception.BusinessException;
 import com.anonymous.config.ReservationMqConstants;
 import com.anonymous.dto.ReservationTimeoutMessage;
 import org.slf4j.Logger;
@@ -27,7 +28,7 @@ public class ReservationTimeoutProducer {
         try {
             return objectMapper.writeValueAsBytes(payload);
         } catch (Exception e) {
-            throw new RuntimeException("序列化超时消息失败", e);
+            throw new BusinessException(500, "序列化超时消息失败", e);
         }
     }
 

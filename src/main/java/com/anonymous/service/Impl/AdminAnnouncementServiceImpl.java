@@ -71,7 +71,7 @@ public class AdminAnnouncementServiceImpl implements AdminAnnouncementService {
 
     private void validateTimeRange(LocalDateTime publishTime, LocalDateTime expireTime) {
         if (publishTime != null && expireTime != null && !publishTime.isBefore(expireTime)) {
-            throw new RuntimeException("公告发布时间必须早于过期时间");
+            throw new InvalidParameterException("announcement.timeRange");
         }
     }
 

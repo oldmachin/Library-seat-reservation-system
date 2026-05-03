@@ -1,5 +1,6 @@
 package com.anonymous.service.Impl;
 
+import com.anonymous.common.exception.BusinessException;
 import com.anonymous.mapper.ReputationRecordMapper;
 import com.anonymous.mapper.UserMapper;
 import com.anonymous.model.ReputationRecord;
@@ -61,7 +62,7 @@ public class ReputationServiceImpl implements ReputationService {
     public User refreshBlacklistIfNeeded(Long userId) {
         User user = userMapper.findByIdForUpdate(userId);
         if (user == null) {
-            throw new RuntimeException("用户不存在");
+            throw new BusinessException(404, "用户不存在");
         }
 
         if (user.getBlacklistUntil() != null && !user.getBlacklistUntil().isAfter(LocalDateTime.now())) {
@@ -80,7 +81,7 @@ public class ReputationServiceImpl implements ReputationService {
                              String reason) {
         User user = userMapper.findByIdForUpdate(userId);
         if (user == null) {
-            throw new RuntimeException("用户不存在");
+            throw new BusinessException(404, "用户不存在");
         }
 
         if (user.getBlacklistUntil() != null && !user.getBlacklistUntil().isAfter(LocalDateTime.now())) {

@@ -2,6 +2,7 @@ package com.anonymous.service.Impl;
 
 import com.anonymous.common.Page;
 import com.anonymous.common.TimeSlot;
+import com.anonymous.common.exception.BusinessException;
 import com.anonymous.common.exception.InvalidOperationStatusException;
 import com.anonymous.common.exception.InvalidParameterException;
 import com.anonymous.common.util.ReservationStatusValidator;
@@ -109,7 +110,7 @@ public class ReservationServiceImpl implements ReservationService {
         int score = user.getReputationScore() == null ? 100 : user.getReputationScore();
 
         if (user.getBlacklistUntil() != null && user.getBlacklistUntil().isAfter(LocalDateTime.now())) {
-            throw new RuntimeException(
+            throw new BusinessException(403,
                     "当前信誉分过低，已进入黑名单，需等待至 "
                             + user.getBlacklistUntil().format(BLACKLIST_TIME_FORMATTER)
                             + " 后恢复预约权限"
@@ -117,11 +118,11 @@ public class ReservationServiceImpl implements ReservationService {
         }
 
         if (score < QUICK_BOOK_THRESHOLD) {
-            throw new RuntimeException("当前信誉分过低，暂时无法预约");
+            throw new BusinessException(403, "当前信誉分过低，暂时无法预约");
         }
 
         if (!quickBooking && score < NORMAL_BOOK_THRESHOLD) {
-            throw new RuntimeException("当前信誉分低于80分，仅可使用快捷选座");
+            throw new BusinessException(403, "当前信誉分低于80分，仅可使用快捷选座");
         }
 
         return user;
@@ -137,18 +138,18 @@ public class ReservationServiceImpl implements ReservationService {
 
         Seat seat = seatMapper.findById(seatId);
         if (seat == null) {
-            throw new RuntimeException("座位不存在");
+            throw new InvalidParameterException("seat.id");
         }
         if (seat.getStatus() == null || seat.getStatus() == SeatStatus.UNAVAILABLE) {
-            throw new RuntimeException("当前座位不可预约");
+            throw new InvalidOperationStatusException("当前座位不可预约");
         }
         if (reservationMapper.countActiveReservationsByUserId(userId) > 0) {
-            throw new RuntimeException("抱歉，您当前已有生效中的预约，不能重复占座！");
+            throw new InvalidOperationStatusException("抱歉，您当前已有生效中的预约，不能重复占座！");
         }
 
         Long reservationId = tryCreatePendingReservation(userId, seat, start, end, slots);
         if (reservationId == null) {
-            throw new RuntimeException("抱歉，该时间段座位已被占用");
+            throw new InvalidOperationStatusException("抱歉，该时间段座位已被占用");
         }
 
         roomSeatBroadcastService.broadcastRoomSnapshot(seat.getRoomId());
@@ -161,7 +162,7 @@ public class ReservationServiceImpl implements ReservationService {
     public boolean cancelReservation(Long userId, Long seatId) {
         Reservation reservation = reservationMapper.findLatestPendingByUserIdAndSeatId(userId, seatId);
         if (reservation == null) {
-            throw new RuntimeException("当前没有可取消的预约");
+            throw new InvalidOperationStatusException("当前没有可取消的预约");
         }
 
         ReservationStatusValidator.validateUserCancel(reservation.getStatus());
@@ -190,12 +191,12 @@ public class ReservationServiceImpl implements ReservationService {
 
         if (reservation == null) {
 //                log.warn("【签到失败】用户{}没有代签到的记录", userId);
-            throw new RuntimeException("您没有待签到的记录，请您先预约");
+            throw new InvalidOperationStatusException("您没有待签到的记录，请您先预约");
         }
 
         if (!reservation.getSeatId().equals(seatId)) {
 //                log.warn("【走错座位】用户 {} 预约了 {}, 但扫描了 {}", userId, reservation.getSeatId(), seatId);
-            throw new RuntimeException("走错位置啦！您预约的座位不是这个，请重新核对座位号！");
+            throw new InvalidOperationStatusException("走错位置啦！您预约的座位不是这个，请重新核对座位号！");
         }
 
         ReservationStatusValidator.validateCheckIn(reservation.getStatus());
@@ -225,7 +226,7 @@ public class ReservationServiceImpl implements ReservationService {
 
         if (reservation == null) {
 //                log.warn("【签退失败】用户{}没有待签退的记录", userId);
-            throw new RuntimeException("您没有待签退的记录，请您先预约");
+            throw new InvalidOperationStatusException("您没有待签退的记录，请您先预约");
         }
 
         ReservationStatusValidator.validateCheckOut(reservation.getStatus());
@@ -251,7 +252,7 @@ public class ReservationServiceImpl implements ReservationService {
     public boolean leaveTemp(Long userId) {
         Reservation reservation = reservationMapper.findInUse(userId);
         if (reservation == null) {
-            throw new RuntimeException("当前没有使用中的预约，无法暂离");
+            throw new InvalidOperationStatusException("当前没有使用中的预约，无法暂离");
         }
 
         ReservationStatusValidator.validateLeaveTemp(reservation.getStatus());
@@ -269,17 +270,17 @@ public class ReservationServiceImpl implements ReservationService {
     public boolean returnTemp(Long userId, Long seatId) {
         Reservation reservation = reservationMapper.findInUse(userId);
         if (reservation == null) {
-            throw new RuntimeException("当前没有使用中的预约，无法返回");
+            throw new InvalidOperationStatusException("当前没有使用中的预约，无法返回");
         }
         if (!reservation.getSeatId().equals(seatId)) {
-            throw new RuntimeException("座位不匹配，无法返回");
+            throw new InvalidOperationStatusException("座位不匹配，无法返回");
         }
 
         Seat seat = seatMapper.findById(seatId);
 
         ReservationStatusValidator.validateLeaveTemp(reservation.getStatus());
         if (seat.getStatus() == null) {
-            throw new RuntimeException("座位状态异常");
+            throw new InvalidOperationStatusException("座位状态异常");
         }
         ReservationStatusValidator.validateReturnTemp(seat.getStatus().getCode());
 
@@ -317,7 +318,7 @@ public class ReservationServiceImpl implements ReservationService {
             }
         } catch (Exception e) {
 //            log.error("【系统异常】处理超时违约失败！订单号: {}", reservationId, e);
-            throw new RuntimeException("处理超时违约事务执行失败", e); // 必须抛出以回滚
+            throw new BusinessException(500, "处理超时违约事务执行失败", e); // 必须抛出以回滚
         }
     }
 
@@ -366,7 +367,7 @@ public class ReservationServiceImpl implements ReservationService {
                 reputationService.onReservationViolated(reservation.getUserId(), reservation.getId());
             }
         } catch (Exception e) {
-            throw new RuntimeException("处理暂离超时事务执行失败", e);
+            throw new BusinessException(500, "处理暂离超时事务执行失败", e);
         }
     }
 
@@ -396,7 +397,7 @@ public class ReservationServiceImpl implements ReservationService {
         }
 
         if (!Objects.equals(reservation.getUserId(), userId)) {
-            throw new RuntimeException("无权查看该预约详情");
+            throw new BusinessException(403, "无权查看该预约详情");
         }
 
         Room room = roomMapper.findById(reservation.getRoomId());
@@ -467,7 +468,7 @@ public class ReservationServiceImpl implements ReservationService {
 
     private void validateFutureBookTime(LocalDateTime start) {
         if (!start.isAfter(LocalDateTime.now())) {
-            throw new RuntimeException("只能预约当前时间之后的时间段");
+            throw new InvalidParameterException("reservation.startTime");
         }
     }
 
@@ -480,7 +481,7 @@ public class ReservationServiceImpl implements ReservationService {
         List<TimeSlot> slots = ReservationTimeValidator.resolveContinuousSlots(start, end);
 
         if (reservationMapper.countActiveReservationsByUserId(userId) > 0) {
-            throw new RuntimeException("抱歉，您当前已有生效中的预约，不能重复占座！");
+            throw new InvalidOperationStatusException("抱歉，您当前已有生效中的预约，不能重复占座！");
         }
 
         List<Room> rooms = roomMapper.findAllByStatuses(List.of(RoomStatus.AVAILABLE.getCode()));
@@ -507,6 +508,6 @@ public class ReservationServiceImpl implements ReservationService {
             }
         }
 
-        throw new RuntimeException("当前时间暂无可分配座位，请稍后再试或切换时间段。");
+        throw new InvalidOperationStatusException("当前时间暂无可分配座位，请稍后再试或切换时间段。");
     }
 }

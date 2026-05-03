@@ -1,15 +1,19 @@
 package com.anonymous.websocket;
 
 import com.anonymous.common.util.JwtUtil;
+import com.anonymous.common.util.ResultResponseWriter;
 import com.anonymous.mapper.UserMapper;
 import com.anonymous.model.User;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.http.server.ServletServerHttpRequest;
+import org.springframework.http.server.ServletServerHttpResponse;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.server.HandshakeInterceptor;
@@ -30,6 +34,24 @@ public class WebSocketAuthInterceptor implements HandshakeInterceptor {
     @Autowired
     private UserMapper userMapper;
 
+    private boolean reject(ServerHttpResponse response, HttpStatus status, int code, String message) {
+        response.setStatusCode(status);
+
+        if (response instanceof ServletServerHttpResponse servletResponse) {
+            HttpServletResponse rawResponse = servletResponse.getServletResponse();
+            try {
+                ResultResponseWriter.write(rawResponse, status.value(), code, message);
+            } catch (Exception ignored) {
+            }
+        } else {
+            response.getHeaders().add("X-Error-Code", String.valueOf(code));
+            response.getHeaders().add("X-Error-Message", message);
+        }
+
+        return false;
+    }
+
+
     /**
      * 在建立WebSocket对话之前，尝试解析用户的userId
      *
@@ -43,39 +65,39 @@ public class WebSocketAuthInterceptor implements HandshakeInterceptor {
     @Override
     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response, WebSocketHandler wsHandler, Map<String, Object> attributes) {
         if (!(request instanceof ServletServerHttpRequest servletServerHttpRequest)) {
-            return false;
+            return reject(response, HttpStatus.BAD_REQUEST, 400, "无效的WebSocket请求");
         }
         HttpServletRequest httpServletRequest = servletServerHttpRequest.getServletRequest();
         String token = httpServletRequest.getParameter("token");
         if (token == null || token.isBlank()) {
-            return false;
+            return reject(response, HttpStatus.UNAUTHORIZED, 401, "未提供认证token");
         }
 
         try {
             String subject = jwtUtil.getSubject(token);
             if (subject == null || subject.isBlank()) {
-                return false;
+                return reject(response, HttpStatus.UNAUTHORIZED, 401, "token无效或已过期");
             }
             Long userId = Long.valueOf(subject);
 
             String cachedToken = redisTemplate.opsForValue().get(AUTH_USER_PREFIX + userId);
             if (cachedToken == null || !cachedToken.equals(token)) {
-                return false;
+                return reject(response, HttpStatus.UNAUTHORIZED, 401, "会话已失效或已在别处登录");
             }
 
             User user = userMapper.findById(userId);
             if (user == null) {
                 redisTemplate.delete(AUTH_USER_PREFIX + userId);
-                return false;
+                return reject(response, HttpStatus.UNAUTHORIZED, 401, "用户不存在");
             }
             if (user.getStatus() == null || user.getStatus() != 0) {
                 redisTemplate.delete(AUTH_USER_PREFIX + userId);
-                return false;
+                return reject(response, HttpStatus.FORBIDDEN, 403, "账号已被禁用，请联系管理员");
             }
             attributes.put("userId", userId);
             return true;
         } catch (Exception e) {
-            return false;
+            return reject(response, HttpStatus.UNAUTHORIZED, 401, "WebSocket认证失败");
         }
     }
 

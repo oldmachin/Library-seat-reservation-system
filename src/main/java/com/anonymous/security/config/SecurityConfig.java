@@ -1,6 +1,8 @@
 package com.anonymous.security.config;
 
 import com.anonymous.security.filter.JwtAuthFilter;
+import com.anonymous.security.handler.ApiAccessDeniedHandler;
+import com.anonymous.security.handler.ApiAuthenticationEntryPoint;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -29,12 +31,21 @@ public class SecurityConfig {
     @Autowired
     private JwtAuthFilter jwtAuthFilter;
 
+    @Autowired
+    private ApiAuthenticationEntryPoint apiAuthenticationEntryPoint;
+
+    @Autowired
+    private ApiAccessDeniedHandler apiAccessDeniedHandler;
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(apiAuthenticationEntryPoint)
+                        .accessDeniedHandler(apiAccessDeniedHandler))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/v1/user/login").permitAll()
                         .requestMatchers("/ws/reservation").permitAll()

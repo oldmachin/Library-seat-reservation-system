@@ -1,6 +1,9 @@
 package com.anonymous.service.Impl;
 
 import com.anonymous.common.Page;
+import com.anonymous.common.exception.BusinessException;
+import com.anonymous.common.exception.InvalidOperationStatusException;
+import com.anonymous.common.exception.InvalidParameterException;
 import com.anonymous.mapper.ReputationRecordMapper;
 import com.anonymous.mapper.UserMapper;
 import com.anonymous.mapper.ReservationMapper;
@@ -62,18 +65,18 @@ public class UserServiceImpl implements UserService {
     @Override
     public User login(String username, String password) {
         if (username == null || username.trim().isEmpty()) {
-            throw new RuntimeException("用户名不能为空");
+            throw new InvalidParameterException("user.username");
         }
         if (password == null || password.isEmpty()) {
-            throw new RuntimeException("密码不能为空");
+            throw new InvalidParameterException("user.password");
         }
 
         User user = userMapper.findByUsername(username.trim());
         if (user == null || !passwordMatches(password, user.getPassword())) {
-            throw new RuntimeException("用户名或密码错误。");
+            throw new BusinessException(401, "用户名或密码错误。");
         }
         if (user.getStatus() == null || user.getStatus() != 0) {
-            throw new RuntimeException("账号已被禁用，请联系管理员");
+            throw new BusinessException(403, "账号已被禁用，请联系管理员");
         }
         upgradePasswordIfNecessary(user, password);
         user.setPassword(null);
@@ -84,7 +87,7 @@ public class UserServiceImpl implements UserService {
     public User findById(Long id) {
         User user = userMapper.findById(id);
         if (user == null) {
-            throw new RuntimeException("用户不存在");
+            throw new InvalidParameterException("user.id");
         }
         return user;
     }
@@ -92,17 +95,17 @@ public class UserServiceImpl implements UserService {
     @Override
     public boolean updateProfile(Long id, String name) {
         if (name == null || name.trim().isEmpty()) {
-            throw new RuntimeException("姓名不能为空");
+            throw new InvalidParameterException("user.name");
         }
 
         String trimmedName = name.trim();
         if (trimmedName.length() > 20) {
-            throw new RuntimeException("姓名长度不能超过20个字符");
+            throw new InvalidParameterException("user.name");
         }
 
         int rows = userMapper.updateNameById(id, trimmedName);
         if (rows == 0) {
-            throw new RuntimeException("个人资料更新失败");
+            throw new InvalidOperationStatusException("个人资料更新失败");
         }
         return rows > 0;
     }
@@ -110,26 +113,26 @@ public class UserServiceImpl implements UserService {
     @Override
     public boolean changePassword(Long id, String oldPassword, String newPassword) {
         if (oldPassword == null || oldPassword.isEmpty()) {
-            throw new RuntimeException("旧密码不能为空");
+            throw new InvalidParameterException("user.oldPassword");
         }
         if (newPassword == null || newPassword.isEmpty()) {
-            throw new RuntimeException("新密码不能为空");
+            throw new InvalidParameterException("user.newPassword");
         }
         if (newPassword.length() < 6) {
-            throw new RuntimeException("新密码长度不能小于6位");
+            throw new InvalidParameterException("user.newPassword");
         }
         if (oldPassword.equals(newPassword)) {
-            throw new RuntimeException("新旧密码不能相同");
+            throw new InvalidParameterException("user.newPassword");
         }
 
         User user = findById(id);
         if (!passwordMatches(oldPassword, user.getPassword())) {
-            throw new RuntimeException("旧密码输入错误");
+            throw new BusinessException(401, "旧密码输入错误");
         }
         String encodedPassword = passwordEncoder.encode(newPassword);
         int rows = userMapper.updatePasswordById(id, encodedPassword);
         if (rows == 0) {
-            throw new RuntimeException("密码修改失败");
+            throw new InvalidOperationStatusException("密码修改失败");
         }
         return true;
     }

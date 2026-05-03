@@ -45,6 +45,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public Result<Object> handleException(Exception e) {
         // 在职业实践中，此处应记录完整堆栈日志，并给用户返回模糊的错误提示以对冲安全风险
-        return Result.fail(500, e.getMessage() == null ? "业务处理失败" : e.getMessage());
+        return Result.fail(500, "系统繁忙，请稍后再试");
     }
 }
